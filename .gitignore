@@ -1,0 +1,24 @@
+# Secrets
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+env/
+venv/
+.env/
+
+# Node
+node_modules/
+dist/
+.npm
+
+# Docker/DB
+pgdata/
+.docker-data/
+
+# OS
+.DS_Store
+Thumbs.db
