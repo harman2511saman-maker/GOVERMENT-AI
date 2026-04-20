@@ -1,24 +1,23 @@
-# Secrets
+# Environment Variables (Sensitive)
 .env
-backend/.env
+.env.local
+.env.*.local
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-env/
-venv/
-.env/
-
-# Node
+# Project Dependencies
 node_modules/
+backend/venv/
+backend/.venv/
+
+# Build Outputs
 dist/
-.npm
+build/
+*.pyc
+__pycache__/
 
-# Docker/DB
-pgdata/
-.docker-data/
-
-# OS
+# OS Files
 .DS_Store
 Thumbs.db
+
+# Docker
+.dockerignore
+!docker-compose.yml
