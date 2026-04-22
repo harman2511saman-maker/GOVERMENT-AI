@@ -7,14 +7,17 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+pg8000://user:password@localhost/govai")
 
-# SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Fix for Render/Neon: SQLAlchemy requires 'postgresql://' instead of 'postgres://'
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+pg8000://", 1)
+elif "postgresql://" in DATABASE_URL and "+pg8000" not in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://", 1)
 
-# Configure engine with SSL if on Render
+# Production SSL handling
 connect_args = {}
-if os.getenv("RENDER"):
-    connect_args["sslmode"] = "require"
+if "localhost" not in DATABASE_URL and "db" not in DATABASE_URL:
+    # Most cloud providers (Neon, Render) require SSL
+    connect_args = {"ssl_context": True} 
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

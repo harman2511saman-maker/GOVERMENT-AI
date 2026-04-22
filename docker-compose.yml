@@ -26,7 +26,7 @@ services:
       context: ./backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+pg8000://user:password@db/govai
+      DATABASE_URL: postgresql+pg8000://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@db/${POSTGRES_DB:-govai}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       GROQ_API_KEY: ${GROQ_API_KEY}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-yoursecret-please-change-in-production}
