@@ -16,6 +16,7 @@ import os
 import uuid
 import datetime
 import re
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -23,8 +24,18 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 load_dotenv()
 
 # --- Shared AI Components ---
-# Initialize embeddings singleton (Multi-lingual model)
-embeddings_model = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+# Global reference for the model
+embeddings_model = None
+
+def get_embeddings():
+    """Lazy load the embeddings model to speed up startup."""
+    global embeddings_model
+    if embeddings_model is None:
+        print("⏳ Loading AI Embeddings model...")
+        embeddings_model = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+        print("✅ AI Embeddings model loaded.")
+    return embeddings_model
+
 # Updated chunking for better legal/gov context (Suggested: 500-800 size, 50-100 overlap)
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=100)
 
@@ -42,17 +53,26 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-# Create all tables
-try:
-    with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
-    Base.metadata.create_all(bind=engine)
-    print("✅ Database tables ready.")
-except Exception as e:
-    print("⚠️ Warning: Database issue:", e)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize Database
+    try:
+        print("🚀 Starting Government AI Backend...")
+        with engine.connect() as conn:
+            print("🔧 Checking database extensions...")
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            conn.commit()
+        
+        print("🛠️ Syncing database schemas...")
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database ready.")
+    except Exception as e:
+        print(f"❌ Startup Error: {e}")
+    
+    yield
+    # Shutdown logic goes here if needed
 
-app = FastAPI(title="Government AI System - Backend", version="1.0")
+app = FastAPI(title="Government AI System - Backend", version="1.0", lifespan=lifespan)
 
 # Setup Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -157,7 +177,9 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
         cleaned_question = clean_text(user_question)
         print(f"--- Searching for: {cleaned_question} ---")
         
-        query_embedding = embeddings_model.embed_query(cleaned_question)
+        # Get embeddings model through lazy-loader
+        model = get_embeddings()
+        query_embedding = model.embed_query(cleaned_question)
 
         # pgvector cosine similarity search with score
         results = db.execute(
@@ -341,8 +363,9 @@ async def ingest_document(req: IngestRequest, db: Session = Depends(get_db), adm
         chunks = text_splitter.split_text(cleaned_content)
 
         # Generate embeddings and store
+        model = get_embeddings()
         for chunk in chunks:
-            vector = embeddings_model.embed_query(chunk)
+            vector = model.embed_query(chunk)
             chunk_entry = DocumentChunk(
                 document_id=doc_entry.id,
                 chunk_text=chunk,
@@ -397,8 +420,9 @@ async def update_document(doc_id: int, req: IngestRequest, db: Session = Depends
 
         # Re-chunk and re-embed cleaned content
         chunks = text_splitter.split_text(cleaned_content)
+        model = get_embeddings()
         for chunk in chunks:
-            vector = embeddings_model.embed_query(chunk)
+            vector = model.embed_query(chunk)
             chunk_entry = DocumentChunk(
                 document_id=doc.id,
                 chunk_text=chunk,
@@ -491,12 +515,13 @@ async def reindex_all_documents(db: Session = Depends(get_db), admin: models.Adm
         # Step 2: Fetch all documents
         docs = db.query(models.Document).all()
         total_chunks = 0
+        model = get_embeddings()
         
         for doc in docs:
             # Re-chunk with current settings (600/100)
             chunks = text_splitter.split_text(doc.content)
             for chunk in chunks:
-                vector = embeddings_model.embed_query(chunk)
+                vector = model.embed_query(chunk)
                 chunk_entry = models.DocumentChunk(
                     document_id=doc.id,
                     chunk_text=chunk,
