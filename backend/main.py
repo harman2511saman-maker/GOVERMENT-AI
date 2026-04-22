@@ -30,6 +30,8 @@ text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=100
 
 # Load threshold from .env for dynamic tuning
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.28"))
+print(f"🔍 AI Retrieval Threshold set to: {SIMILARITY_THRESHOLD}")
+
 
 def clean_text(text: str) -> str:
     """Removes extra noise, symbols like +, -, | and redundant whitespace."""
@@ -191,6 +193,7 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
                     })
                     seen_titles.add(row[1])
         
+        if valid_chunks:
             context_text = "\n\n".join(valid_chunks)
             print(f"--- RAG Context Found ({len(valid_chunks)} chunks, {len(sources)} sources) ---")
         else:
@@ -207,6 +210,7 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
                 db.commit()
             except Exception as me:
                 print(f"Failed to log missed question: {me}")
+
     except Exception as e:
         print(f"Vector search failed: {e}")
 
@@ -533,3 +537,10 @@ def clear_all_missed_questions(db: Session = Depends(get_db), admin: models.Admi
     db.query(models.MissedQuestion).delete()
     db.commit()
     return {"success": True}
+
+@app.delete("/api/admin/logs/clear")
+def clear_all_logs(db: Session = Depends(get_db), admin: models.AdminUser = Depends(get_current_admin)):
+    # Specifically for the user's request, cleans the MissedQuestion table
+    db.query(models.MissedQuestion).delete()
+    db.commit()
+    return {"success": True, "message": "Logs cleared successfully"}

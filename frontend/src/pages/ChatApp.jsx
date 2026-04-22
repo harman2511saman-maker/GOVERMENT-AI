@@ -245,12 +245,33 @@ const ChatApp = () => {
     printWindow.document.close();
   };
 
-  const handleCopy = (text, id) => {
+  const handleCopy = async (text, id) => {
     // Clean text from markdown for cleaner clipboard content
     const cleanContent = text.replace(/[*#_\[\]()]/g, '');
-    navigator.clipboard.writeText(cleanContent);
-    setCopyStatus(id);
-    setTimeout(() => setCopyStatus(null), 2000);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(cleanContent);
+      } else {
+        // Fallback for HTTP (non-secure context) like local IPs
+        const textArea = document.createElement("textarea");
+        textArea.value = cleanContent;
+        textArea.style.position = "absolute";
+        textArea.style.left = "-999999px";
+        document.body.prepend(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } catch (error) {
+          console.error(error);
+        } finally {
+          textArea.remove();
+        }
+      }
+      setCopyStatus(id);
+      setTimeout(() => setCopyStatus(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
   };
 
   const renderMessageText = (text) => {
@@ -282,7 +303,8 @@ const ChatApp = () => {
         loop
         muted
         playsInline
-        className="absolute inset-0 mx-auto w-full max-w-md md:max-w-xl lg:max-w-2xl h-full object-contain object-center scale-[1.1] md:scale-100 opacity-15 pointer-events-none mix-blend-multiply z-0 -translate-x-2 md:-translate-x-4"
+        webkit-playsinline="true"
+        className="absolute inset-0 mx-auto w-full max-w-sm md:max-w-xl lg:max-w-2xl h-full object-contain object-center scale-[1.2] md:scale-100 opacity-20 pointer-events-none mix-blend-multiply z-0 -translate-x-1 md:-translate-x-4"
       >
         <source src={bgVideo} type="video/mp4" />
       </video>
@@ -347,38 +369,38 @@ const ChatApp = () => {
         
         {/* Header */}
         <header className="flex-none glass-nav-dark z-20 text-white shadow-md border-b-4 border-secondary">
-          <div className="px-3 py-2.5 md:px-6 md:py-4 flex items-center justify-between gap-2">
+          <div className="px-4 py-4 md:px-6 md:py-4 flex items-center justify-between gap-3">
             {/* Right Side: Branding */}
-            <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
+            <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
               <div className="relative flex-shrink-0">
                 <div className="absolute -inset-1 bg-gradient-to-r from-secondary to-yellow-200 rounded-full blur opacity-40"></div>
-                <img src={logoImage} alt="لۆگۆی حکومەت" className="relative w-9 h-9 md:w-14 md:h-14 object-cover rounded-full border-2 border-secondary/80 shadow-lg object-center bg-white" />
-                <span className="absolute -bottom-1.5 md:-bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[6px] md:text-[9px] font-black px-1 md:px-2 py-0.5 rounded-full border border-white shadow-sm flex items-center gap-0.5 tracking-wider whitespace-nowrap">
-                  <ShieldCheck size={8} className="md:w-[10px] md:h-[10px]" /> فەرمی
+                <img src={logoImage} alt="لۆگۆی حکومەت" className="relative w-12 h-12 md:w-14 md:h-14 object-cover rounded-full border-2 border-secondary/80 shadow-lg object-center bg-white transition-all" />
+                <span className="absolute -bottom-1 md:-bottom-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] md:text-[9px] font-black px-1.5 md:px-2 py-0.5 rounded-full border border-white shadow-sm flex items-center gap-0.5 tracking-wider whitespace-nowrap">
+                  <ShieldCheck size={10} className="md:w-[10px] md:h-[10px]" /> فەرمی
                 </span>
               </div>
               <div className="flex flex-col justify-center min-w-0">
-                <h1 className="text-[13px] md:text-xl font-bold tracking-tight flex items-center gap-1 md:gap-2 text-white whitespace-nowrap">
-                  <Crown size={14} className="text-secondary flex-shrink-0 md:w-[18px] md:h-[18px]" />
+                <h1 className="text-[17px] md:text-xl font-bold tracking-tight flex items-center gap-1 md:gap-2 text-white whitespace-nowrap">
+                  <Crown size={16} className="text-secondary flex-shrink-0 md:w-[18px] md:h-[18px]" />
                   ناوەندی زانیاری زیرەک
                 </h1>
-                <span className="hidden sm:flex text-[9px] md:text-xs text-gray-300 font-medium tracking-wide items-center gap-1.5 mt-0.5 opacity-70">
+                <span className="flex text-[10px] md:text-xs text-gray-300 font-medium tracking-wide items-center gap-1.5 mt-0.5 opacity-90 md:opacity-70">
                   <ShieldCheck size={12} className="text-secondary opacity-80" /> پلاتفۆرمی فەرمی وەڵامدانەوەی هاوڵاتی
                 </span>
               </div>
             </div>
 
             {/* Left Side: Mobile Actions */}
-            <div className="flex items-center gap-1.5 md:hidden flex-shrink-0" dir="ltr">
+            <div className="flex items-center gap-1.5 flex-shrink-0" dir="ltr">
               <button 
-                className="p-1.5 text-white bg-white/10 rounded-lg hover:bg-white/20 transition-all" 
+                className="p-2 text-white bg-white/10 rounded-xl hover:bg-white/20 transition-all md:hidden" 
                 onClick={() => setSidebarOpen(true)}
               >
                 <Menu size={20} />
               </button>
               <button 
                 onClick={startNewChat} 
-                className="p-1.5 text-primary_dark bg-secondary hover:bg-yellow-400 rounded-lg transition-all shadow-md active:scale-95"
+                className="p-2 text-primary_dark bg-secondary hover:bg-yellow-400 rounded-xl transition-all shadow-md active:scale-95 md:hidden"
               >
                 <PlusCircle size={20} />
               </button>
@@ -387,29 +409,29 @@ const ChatApp = () => {
         </header>
 
         {/* Messages */}
-        <main id="scroll-container" className="flex-1 overflow-y-auto scroll-smooth z-10 p-4 md:p-8">
+        <main id="scroll-container" className="flex-1 overflow-y-auto scroll-smooth z-10 p-3 md:p-8">
           <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-6 pt-4">
             
             {messages.map(msg => (
               <div key={msg.id} className={`flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-message`}>
-                <div className={`max-w-[95%] md:max-w-[85%] p-4 md:p-5 rounded-2xl flex gap-3 md:gap-4 shadow-sm relative group ${
+                <div className={`max-w-[98%] md:max-w-[85%] p-4 md:p-5 rounded-2xl flex gap-3 md:gap-4 shadow-sm relative group ${
                   msg.sender === 'user' 
                   ? 'bg-gradient-to-br from-primary to-primary_dark text-white rounded-tr-sm border border-primary/20' 
                   : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm shadow-[0_4px_20px_rgba(0,0,0,0.03)]'
                 }`}>
                   <div className="mt-1 flex-shrink-0">
                     {msg.sender === 'user' ? (
-                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary border border-secondary/30 shadow-inner">
-                        <User size={18} className="text-white" />
+                      <div className="w-10 h-10 md:w-10 md:h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary border border-secondary/30 shadow-inner">
+                        <User size={20} className="text-white" />
                       </div>
                     ) : (
-                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10 shadow-sm overflow-hidden bg-white">
+                      <div className="w-10 h-10 md:w-10 md:h-10 rounded-full bg-primary/5 flex items-center justify-center border border-primary/10 shadow-sm overflow-hidden bg-white">
                          <img src={logoImage} alt="AI" className="w-full h-full object-cover" />
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col gap-3 flex-1 min-w-0">
-                    <div className="leading-loose text-[14px] md:text-base font-medium pt-1.5 break-words">
+                    <div className="leading-loose text-[16px] md:text-base font-medium pt-1.5 break-words">
                       {renderMessageText(msg.text)}
                     </div>
                     
@@ -418,13 +440,13 @@ const ChatApp = () => {
                       <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
                         {/* Feedback & Print Group */}
                         <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded-xl border border-gray-100 shadow-sm">
+                            <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-xl border border-gray-100 shadow-sm">
                                <button 
                                  onClick={() => sendFeedback(msg.id, 1)}
                                  className={`p-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold ${msg.feedback_score === 1 ? 'bg-green-100 text-green-700' : 'bg-transparent text-gray-400 hover:bg-green-50 hover:text-green-600'}`}
                                  title="وەڵامێکی باش بوو"
                                >
-                                 <ThumbsUp size={16} className={msg.feedback_score === 1 ? "fill-current" : ""} />
+                                 <ThumbsUp size={18} className={msg.feedback_score === 1 ? "fill-current" : ""} />
                                </button>
                                <div className="w-[1px] h-4 bg-gray-200"></div>
                                <button 
@@ -432,20 +454,20 @@ const ChatApp = () => {
                                  className={`p-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold ${msg.feedback_score === -1 ? 'bg-red-100 text-red-700' : 'bg-transparent text-gray-400 hover:bg-red-50 hover:text-red-600'}`}
                                  title="لێی تێنەگەیشتم / هەڵەیە"
                                >
-                                 <ThumbsDown size={16} className={msg.feedback_score === -1 ? "fill-current" : ""} />
+                                 <ThumbsDown size={18} className={msg.feedback_score === -1 ? "fill-current" : ""} />
                                </button>
                             </div>
 
                             <button 
                               onClick={() => handlePrint(msg.text)}
-                              className="flex items-center gap-1.5 text-[11px] md:text-xs font-bold text-primary_dark bg-white hover:bg-gray-50 py-2 px-3 rounded-xl transition-colors border border-gray-200 shadow-sm"
+                              className="flex items-center gap-1.5 text-xs font-bold text-primary_dark bg-white hover:bg-gray-50 py-2.5 px-4 rounded-xl transition-colors border border-gray-200 shadow-sm"
                             >
                               <Printer size={14} className="text-secondary" /> PDF
                             </button>
 
                             <button 
                               onClick={() => handleCopy(msg.text, msg.id)}
-                              className={`flex items-center gap-1.5 text-[11px] md:text-xs font-bold py-2 px-3 rounded-xl transition-all border shadow-sm ${
+                              className={`flex items-center gap-1.5 text-xs font-bold py-2.5 px-4 rounded-xl transition-all border shadow-sm ${
                                 copyStatus === msg.id 
                                 ? 'bg-green-50 text-green-600 border-green-200' 
                                 : 'bg-white text-primary_dark hover:bg-gray-50 border-gray-200'
@@ -512,7 +534,7 @@ const ChatApp = () => {
             <div className="relative flex items-center w-full">
               <input
                 type="text"
-                className="w-full h-14 md:h-16 bg-gray-50 border-2 border-gray-200 rounded-2xl md:rounded-full pr-5 pl-14 md:pl-20 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary focus:bg-white shadow-inner text-gray-800 font-medium placeholder-gray-400 text-[15px] md:text-base transition-all"
+                className="w-full h-14 md:h-16 bg-gray-50 border-2 border-gray-200 rounded-2xl md:rounded-full pr-5 pl-14 md:pl-20 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary focus:bg-white shadow-inner text-gray-800 font-medium placeholder-gray-400 text-base md:text-base transition-all"
                 placeholder="پرسیارەکەت لێرە بنووسە بۆ وەرگرتنی ڕێنمایی فەرمی..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}

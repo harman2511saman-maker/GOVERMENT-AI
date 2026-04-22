@@ -254,6 +254,24 @@ const AdminApp = () => {
     } catch (err) { console.error(err); }
   };
 
+  const handleClearLogs = async () => {
+    try {
+      const res = await fetch('/api/admin/logs/clear', { method: 'DELETE', headers: getHeaders() });
+      if (res.ok) {
+        setDeleteConfirmId(null);
+        setDeleteMode(null);
+        setMessage('هەموو لۆگەکان بە سەرکەوتوویی سڕانەوە.');
+        fetchMissedQuestions();
+        // Clear message after 3 seconds
+        setTimeout(() => setMessage(''), 3000);
+      }
+    } catch (err) { 
+      console.error(err);
+      setMessage('هەڵەیەک ڕوویدا لە کاتی سڕینەوەی لۆگەکان.');
+    }
+  };
+
+
   const handleLogout = () => {
     localStorage.removeItem('admin_token');
     navigate('/login');
@@ -621,7 +639,16 @@ const AdminApp = () => {
             <div className="bg-amber-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg shadow-amber-200">
               {missedQuestions.length}
             </div>
+            {missedQuestions.length > 0 && (
+              <button 
+                onClick={() => { setDeleteConfirmId('all'); setDeleteMode('clear_logs'); }}
+                className="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-xs font-black hover:bg-red-600 hover:text-white transition-all border border-red-100 shadow-sm"
+              >
+                سڕینەوەی هەمووی
+              </button>
+            )}
           </div>
+
 
           <div className="grid grid-cols-1 gap-4">
             {missedQuestions.length === 0 ? (
@@ -678,7 +705,9 @@ const AdminApp = () => {
                     else if (deleteMode === 'feed') handleDeleteFeedback(deleteConfirmId);
                     else if (deleteMode === 'clear_sug') handleClearSuggestions();
                     else if (deleteMode === 'clear_feed') handleClearFeedback();
+                    else if (deleteMode === 'clear_logs') handleClearLogs();
                   }}
+
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-all"
                 >
                   بەڵێ، بسڕەوە

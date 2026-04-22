@@ -32,6 +32,7 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-yoursecret-please-change-in-production}
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 1440
+      SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.28}
     ports:
       - "8000:8000"
     depends_on:
