@@ -27,8 +27,8 @@ class DocumentChunk(Base):
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     chunk_text = Column(Text)
-    # Using pgvector to store 768 or 384 dimensional embeddings depending on model
-    embedding = Column(pgvector.sqlalchemy.Vector(384))
+    # Using pgvector to store 768 dimensional embeddings for Google models
+    embedding = Column(pgvector.sqlalchemy.Vector(768))
     
     document = relationship("Document", backref="chunks")
 

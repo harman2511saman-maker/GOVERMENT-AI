@@ -2,7 +2,7 @@ import os
 from sqlalchemy import text
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from database import engine, SessionLocal, Base
 from models import Document, DocumentChunk
 
@@ -27,9 +27,8 @@ def ingest_data():
     )
     chunks = text_splitter.split_documents(docs)
 
-    print("Initializing embeddings model (this may take a moment to download)...")
-    # paraphrase-multilingual-MiniLM-L12-v2 is compact (384 dims) and supports Kurdish out of the box.
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+    print("Initializing Google embeddings model...")
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 
     print(f"Generating embeddings for {len(chunks)} chunks...")
     

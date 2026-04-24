@@ -17,14 +17,14 @@ import uuid
 import datetime
 import re
 from dotenv import load_dotenv
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
 
 # --- Shared AI Components ---
-# Initialize embeddings singleton (Multi-lingual model)
-embeddings_model = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+# Initialize embeddings singleton (Google Multi-lingual model)
+embeddings_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
 # Updated chunking for better legal/gov context (Suggested: 500-800 size, 50-100 overlap)
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=100)
 
