@@ -378,8 +378,32 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
                 accumulated = []
                 stream_success = False
 
-                # 1. Primary: Groq for sub-second lightning streaming
-                if groq_key:
+                # 1. Primary Engine: OpenAI (gpt-4o-mini) using Citizen's Purchased API Key
+                if openai_key:
+                    try:
+                        import openai
+                        client = openai.OpenAI(api_key=openai_key)
+                        stream_obj = client.chat.completions.create(
+                            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            temperature=0.2,
+                            max_tokens=550,
+                            stream=True
+                        )
+                        for chunk in stream_obj:
+                            delta = chunk.choices[0].delta.content or ""
+                            if delta:
+                                accumulated.append(delta)
+                                yield f"data: {json.dumps({'type': 'chunk', 'content': delta})}\n\n"
+                        stream_success = True
+                    except Exception as oe:
+                        print(f"OpenAI stream issue: {oe}, trying Groq backup...")
+
+                # 2. Backup Fallback: Groq (if OpenAI runs out of balance or errors)
+                if not stream_success and groq_key:
                     try:
                         from langchain_groq import ChatGroq
                         groq_model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
@@ -390,31 +414,7 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
                                 yield f"data: {json.dumps({'type': 'chunk', 'content': chunk.content})}\n\n"
                         stream_success = True
                     except Exception as ge:
-                        print(f"Groq stream issue: {ge}, attempting OpenAI fallback...")
-
-                # 2. Resilient Fallback: OpenAI gpt-4o-mini streaming
-                if not stream_success and openai_key:
-                    try:
-                        import openai
-                        client = openai.OpenAI(api_key=openai_key)
-                        stream_obj = client.chat.completions.create(
-                            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-                            messages=[
-                                {"role": "system", "content": system_prompt},
-                                {"role": "user", "content": user_prompt}
-                            ],
-                            temperature=0,
-                            max_tokens=500,
-                            stream=True
-                        )
-                        for chunk in stream_obj:
-                            delta = chunk.choices[0].delta.content or ""
-                            if delta:
-                                accumulated.append(delta)
-                                yield f"data: {json.dumps({'type': 'chunk', 'content': delta})}\n\n"
-                        stream_success = True
-                    except Exception as oe:
-                        print(f"OpenAI stream issue: {oe}")
+                        print(f"Groq stream issue: {ge}")
 
                 full_answer = "".join(accumulated)
                 if not full_answer:
@@ -447,8 +447,27 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
 
         # ── Branch B: Non-Streaming Standard JSON (Sub-second response) ──
         answer = ""
-        # 1. Primary: Groq (0.6s generation)
-        if groq_key:
+        # 1. Primary Engine: OpenAI (gpt-4o-mini) using Citizen's Purchased API Key
+        if openai_key:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=openai_key)
+                resp = client.chat.completions.create(
+                    model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=550
+                )
+                answer = resp.choices[0].message.content or ""
+            except Exception as oe:
+                print(f"OpenAI generation issue: {oe}, trying Groq backup...")
+                answer = ""
+
+        # 2. Backup Fallback: Groq (if OpenAI runs out of balance or errors)
+        if not answer and groq_key:
             try:
                 from langchain_groq import ChatGroq
                 groq_model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
@@ -458,36 +477,6 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
             except Exception as ge:
                 print(f"Groq generation issue: {ge}")
                 answer = ""
-
-        # 2. Resilient Fallback: OpenAI gpt-4o-mini
-        if not answer and openai_key:
-            try:
-                import urllib.request
-                import json
-                openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-                payload = json.dumps({
-                    "model": openai_model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    "temperature": 0,
-                    "max_tokens": 500
-                }).encode("utf-8")
-                
-                req_ai = urllib.request.Request(
-                    "https://api.openai.com/v1/chat/completions",
-                    data=payload,
-                    headers={
-                        "Authorization": f"Bearer {openai_key}",
-                        "Content-Type": "application/json"
-                    }
-                )
-                with urllib.request.urlopen(req_ai, timeout=15) as resp:
-                    resp_data = json.loads(resp.read().decode("utf-8"))
-                    answer = resp_data["choices"][0]["message"]["content"]
-            except Exception as oai_err:
-                print(f"OpenAI call issue ({oai_err})")
 
     except Exception as e:
         print(f"LLM error: {e}")
