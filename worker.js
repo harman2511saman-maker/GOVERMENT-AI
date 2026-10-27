@@ -14,11 +14,11 @@ export default {
       });
     }
 
-    // Proxy API requests directly to backend
+    // Proxy API requests directly to DigitalOcean Droplet backend (Frankfurt)
     if (url.pathname.startsWith('/api/')) {
-      const targetUrl = new URL(url.pathname + url.search, 'https://goverment-ai.onrender.com');
+      const targetUrl = new URL(url.pathname + url.search, 'http://164.92.207.159');
       const headers = new Headers(request.headers);
-      headers.set('Host', 'goverment-ai.onrender.com');
+      headers.set('Host', '164.92.207.159');
 
       const backendReq = new Request(targetUrl.toString(), {
         method: request.method,
