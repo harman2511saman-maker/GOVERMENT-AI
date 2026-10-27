@@ -14,7 +14,7 @@ export default {
         surface: "#F3F4F6",
       },
       fontFamily: {
-        sans: ['Vazirmatn', 'sans-serif'],
+        sans: ['NRT-Reg', 'Vazirmatn', 'sans-serif'],
       }
     },
   },
