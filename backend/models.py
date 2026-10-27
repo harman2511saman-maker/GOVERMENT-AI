@@ -22,6 +22,8 @@ class Document(Base):
     link = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+    chunks = relationship("DocumentChunk", backref="document", cascade="all, delete-orphan", passive_deletes=True)
+
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
 
@@ -30,8 +32,6 @@ class DocumentChunk(Base):
     chunk_text = Column(Text)
     # Using pgvector to store 768 dimensional embeddings for Google models
     embedding = Column(pgvector.sqlalchemy.Vector(768))
-    
-    document = relationship("Document", backref="chunks")
 
 class ChatSession(Base):
     __tablename__ = "chat_sessions"

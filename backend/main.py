@@ -638,9 +638,14 @@ async def delete_document(doc_id: int, db: Session = Depends(get_db), admin: mod
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    db.delete(doc) # Cascade will delete chunks
-    db.commit()
-    return {"success": True, "message": "Document deleted"}
+    try:
+        db.query(DocumentChunk).filter(DocumentChunk.document_id == doc_id).delete()
+        db.delete(doc)
+        db.commit()
+        return {"success": True, "message": "Document deleted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 @app.get("/api/admin/suggestions")
 def get_admin_suggestions(db: Session = Depends(get_db), admin: models.AdminUser = Depends(get_current_admin)):
     suggestions = db.query(Suggestion).order_by(Suggestion.created_at.desc()).all()
