@@ -14,11 +14,11 @@ export default {
       });
     }
 
-    // Proxy API requests directly to DigitalOcean Droplet backend (Frankfurt)
+    // Proxy API requests directly to DigitalOcean Droplet backend (Frankfurt via sslip.io)
     if (url.pathname.startsWith('/api/')) {
-      const targetUrl = new URL(url.pathname + url.search, 'http://164.92.207.159');
+      const targetUrl = new URL(url.pathname + url.search, 'http://164-92-207-159.sslip.io');
       const headers = new Headers(request.headers);
-      headers.set('Host', '164.92.207.159');
+      headers.set('Host', '164-92-207-159.sslip.io');
 
       const backendReq = new Request(targetUrl.toString(), {
         method: request.method,
