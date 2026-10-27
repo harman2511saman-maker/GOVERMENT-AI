@@ -10,7 +10,8 @@ import {
     User,
     ShieldCheck,
     LogOut,
-    Activity
+    Activity,
+    ExternalLink
 } from 'lucide-react';
 
 const DEPARTMENTS = [
@@ -31,6 +32,7 @@ const AdminApp = () => {
   const [title, setTitle] = useState('');
   const [department, setDepartment] = useState('گشتی');
   const [content, setContent] = useState('');
+  const [link, setLink] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -158,7 +160,7 @@ const AdminApp = () => {
       const res = await fetch(url, {
         method: method,
         headers: getHeaders(),
-        body: JSON.stringify({ title, department, content })
+        body: JSON.stringify({ title, department, content, link })
       });
 
       if (res.ok) {
@@ -181,6 +183,7 @@ const AdminApp = () => {
     setTitle(doc.title);
     setDepartment(doc.department || 'گشتی');
     setContent(doc.content);
+    setLink(doc.link || '');
     setMessage('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -190,6 +193,7 @@ const AdminApp = () => {
     setTitle('');
     setDepartment('گشتی');
     setContent('');
+    setLink('');
   };
   const handleDelete = async (id) => {
     try {
@@ -407,6 +411,18 @@ const AdminApp = () => {
                   />
                 </div>
                 <div>
+                  <label className="block text-[11px] font-black text-slate-400 uppercase mb-2 tracking-widest mr-1">
+                    لینکی فەرمی / ماڵپەڕ (ئارەزوومەندانە)
+                  </label>
+                  <input
+                    type="url"
+                    value={link}
+                    onChange={(e) => setLink(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+                    placeholder="بۆ نموونە: https://moi.gov.krd یان لینکی ئەپڵیکەیشن"
+                  />
+                </div>
+                <div>
                   <label className="block text-[11px] font-black text-slate-400 uppercase mb-2 tracking-widest mr-1">دەقی فەرمی (وەک خۆی)</label>
                   <textarea
                     value={content}
@@ -475,7 +491,20 @@ const AdminApp = () => {
                             </button>
                           </div>
                         </div>
-                        <h3 className="font-bold text-slate-800 mb-3 text-lg leading-snug">{doc.title}</h3>
+                        <h3 className="font-bold text-slate-800 mb-2 text-lg leading-snug">{doc.title}</h3>
+                        {doc.link && (
+                          <div className="mb-3">
+                            <a 
+                              href={doc.link} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition-colors"
+                            >
+                              <ExternalLink size={13} />
+                              <span className="truncate max-w-[200px]">{doc.link}</span>
+                            </a>
+                          </div>
+                        )}
                         <p className="text-xs text-slate-500 line-clamp-4 leading-relaxed font-medium">
                           {doc.content}
                         </p>

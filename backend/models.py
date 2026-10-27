@@ -19,6 +19,7 @@ class Document(Base):
     title = Column(String(200))
     department = Column(String(100), index=True)
     content = Column(Text)
+    link = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 class DocumentChunk(Base):

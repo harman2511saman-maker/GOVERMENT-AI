@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Send, User, Info, ShieldCheck, MessageSquare, Plus, 
   ThumbsUp, ThumbsDown, Printer, Menu, X, Trash2, MessageCircle, 
-  Copy, Check, Globe, Sun, Moon, ChevronDown 
+  Copy, Check, Globe, Sun, Moon, ChevronDown, ExternalLink 
 } from 'lucide-react';
 import logoImage from '../assets/images.jpg';
 import { translations } from '../utils/translations';
@@ -398,8 +398,55 @@ const ChatApp = () => {
 
   const renderMessageText = (text) => {
     if (!text) return null;
-    const parts = text.split(/(\[.*?\])/g);
+    
+    // Split by:
+    // 1. Markdown link: [Title](https?://...)
+    // 2. Standalone suggestion pill: [Title]
+    // 3. Raw URL: https?://...
+    const tokenRegex = /(\[[^\]]+\]\([^\)]+\)|\[[^\]]+\]|https?:\/\/[^\s<]+)/g;
+    const parts = text.split(tokenRegex);
+
     return parts.map((part, idx) => {
+      if (!part) return null;
+
+      // Check if it's a Markdown link: [Title](URL)
+      const mdLinkMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^\)]+)\)$/);
+      if (mdLinkMatch) {
+        const linkTitle = mdLinkMatch[1];
+        const linkUrl = mdLinkMatch[2];
+        return (
+          <a
+            key={idx}
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 my-1 mx-1 px-3.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md hover:shadow-lg transition-all active:scale-95 no-underline"
+          >
+            <span>{linkTitle}</span>
+            <ExternalLink size={13} className="stroke-[2.5]" />
+          </a>
+        );
+      }
+
+      // Check if it's a raw URL: https://...
+      const rawUrlMatch = part.match(/^(https?:\/\/[^\s<]+)$/);
+      if (rawUrlMatch) {
+        const url = rawUrlMatch[1];
+        return (
+          <a
+            key={idx}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 my-1 mx-1 px-3 py-1 rounded-lg font-bold text-xs bg-blue-500/15 hover:bg-blue-500 text-blue-400 hover:text-white border border-blue-500/30 transition-all no-underline"
+          >
+            <span className="truncate max-w-[200px] sm:max-w-xs">{url}</span>
+            <ExternalLink size={12} />
+          </a>
+        );
+      }
+
+      // Check if it's a quick-reply suggestion: [Text]
       if (part.startsWith('[') && part.endsWith(']')) {
         const optionText = part.slice(1, -1);
         return (
@@ -416,7 +463,19 @@ const ChatApp = () => {
           </button>
         );
       }
-      return <span key={idx} className="whitespace-pre-wrap leading-relaxed inline-block">{part}</span>;
+
+      // Normal text with bold **text** support
+      const subParts = part.split(/(\*\*.*?\*\*)/g);
+      return (
+        <span key={idx} className="whitespace-pre-wrap leading-relaxed inline">
+          {subParts.map((sub, sIdx) => {
+            if (sub.startsWith('**') && sub.endsWith('**')) {
+              return <strong key={sIdx} className="font-bold text-blue-500 dark:text-blue-400">{sub.slice(2, -2)}</strong>;
+            }
+            return sub;
+          })}
+        </span>
+      );
     });
   };
 
@@ -777,16 +836,16 @@ const ChatApp = () => {
                              </p>
                              <ul className="space-y-1.5">
                                {msg.sources.map((src, idx) => (
-                                 <li key={idx}>
+                                 <li key={idx} className="flex items-center gap-1.5">
                                    <button 
                                      onClick={() => setSelectedSource(src)}
-                                     className={`w-full flex items-center gap-2 py-1.5 px-3 rounded-xl transition-all border text-[12px] font-bold group text-start ${
+                                     className={`flex-1 flex items-center gap-2 py-1.5 px-3 rounded-xl transition-all border text-[12px] font-bold group text-start min-w-0 ${
                                        isDark 
                                          ? 'bg-[#0b1120] hover:bg-[#131d33] text-slate-200 hover:text-amber-300 border-slate-800 hover:border-amber-500/40' 
                                          : 'bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
                                      }`}
                                    >
-                                     <div className={`w-5 h-5 rounded-md shadow-sm flex items-center justify-center text-[9px] font-bold border transition-colors ${
+                                     <div className={`w-5 h-5 rounded-md shadow-sm flex items-center justify-center text-[9px] font-bold border transition-colors shrink-0 ${
                                        isDark 
                                          ? 'bg-slate-900 text-amber-400 border-slate-800 group-hover:bg-amber-400 group-hover:text-black' 
                                          : 'bg-white text-blue-600 border-slate-200 group-hover:bg-blue-600 group-hover:text-white'
@@ -794,8 +853,20 @@ const ChatApp = () => {
                                        {idx + 1}
                                      </div>
                                      <span className="flex-1 truncate">{src.title}</span>
-                                     <Info size={13} className="opacity-60 group-hover:opacity-100" />
+                                     <Info size={13} className="opacity-60 group-hover:opacity-100 shrink-0" />
                                    </button>
+                                   {src.link && (
+                                     <a
+                                       href={src.link}
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       className="inline-flex items-center gap-1 py-1.5 px-2.5 rounded-xl border text-[11px] font-bold bg-blue-600 hover:bg-blue-500 text-white transition-all shadow-sm active:scale-95 shrink-0"
+                                       title={src.link}
+                                     >
+                                       <ExternalLink size={12} className="stroke-[2.5]" />
+                                       <span className="hidden sm:inline">{t.visitLink || "ماڵپەڕ"}</span>
+                                     </a>
+                                   )}
                                  </li>
                                ))}
                              </ul>
@@ -915,12 +986,23 @@ const ChatApp = () => {
               </div>
             </div>
 
-            <div className={`flex-none p-4 sm:p-5 border-t flex justify-end ${
+            <div className={`flex-none p-4 sm:p-5 border-t flex items-center justify-between gap-3 ${
               isDark ? 'bg-[#0a0f1d] border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}>
+              {selectedSource.link ? (
+                <a
+                  href={selectedSource.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-4 py-2 rounded-xl transition-all shadow-md active:scale-95 text-xs sm:text-sm"
+                >
+                  <span>{t.visitLink || 'سەردانی ماڵپەڕی فەرمی'}</span>
+                  <ExternalLink size={14} className="stroke-[2.5]" />
+                </a>
+              ) : <div />}
               <button 
                 onClick={() => setSelectedSource(null)}
-                className="bg-blue-600 text-white font-bold px-6 py-2 rounded-xl hover:bg-blue-500 transition-all shadow-md active:scale-95 text-sm"
+                className="bg-slate-700 hover:bg-slate-600 text-white font-bold px-6 py-2 rounded-xl transition-all shadow-md active:scale-95 text-sm"
               >
                 {t.close}
               </button>
