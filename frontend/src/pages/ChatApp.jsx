@@ -53,6 +53,7 @@ const ChatApp = () => {
   const [suggestionSending, setSuggestionSending] = useState(false);
   const [suggestionSent, setSuggestionSent] = useState(false);
   const messagesEndRef = useRef(null);
+  const lastUserMessageRef = useRef(null);
   const inputRef = useRef(null);
   const [copyStatus, setCopyStatus] = useState(null);
 
@@ -123,14 +124,12 @@ const ChatApp = () => {
     fetchSessions();
   }, [userId]);
 
-  // Auto scroll
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // Auto scroll to current interaction (keeps question and answers visible from top to bottom)
+  const scrollToLatestTurn = () => {
+    if (lastUserMessageRef.current) {
+      lastUserMessageRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading]);
 
   // Load past session
   const loadSession = async (sessionId) => {
@@ -148,6 +147,9 @@ const ChatApp = () => {
           feedback_score: m.feedback_score || 0
         })));
         setSidebarOpen(false);
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+        }, 100);
       }
     } catch (e) {
       console.error(e);
@@ -195,6 +197,9 @@ const ChatApp = () => {
     if (!overrideText || typeof overrideText !== 'string') setInputText("");
     setIsLoading(true);
 
+    // Smoothly scroll to keep user question and incoming response at the top
+    setTimeout(scrollToLatestTurn, 60);
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -236,6 +241,7 @@ const ChatApp = () => {
           sources: [],
           feedback_score: 0
         }]);
+        setTimeout(scrollToLatestTurn, 60);
 
         let buffer = "";
         while (true) {
@@ -766,8 +772,14 @@ const ChatApp = () => {
         }`}>
           <div className="max-w-4xl mx-auto flex flex-col gap-5 sm:gap-6 pb-6 pt-2">
             
-            {messages.map(msg => (
-              <div key={msg.id} className={`flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-message`}>
+            {messages.map((msg, idx) => {
+              const isLastUser = msg.sender === 'user' && idx === messages.map(m => m.sender).lastIndexOf('user');
+              return (
+              <div 
+                key={msg.id} 
+                ref={isLastUser ? lastUserMessageRef : null}
+                className={`flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-message scroll-mt-4 sm:scroll-mt-6`}
+              >
                 <div className={`max-w-[98%] sm:max-w-[90%] md:max-w-[85%] p-4 sm:p-5 rounded-2xl flex gap-3 sm:gap-4 shadow-md relative group transition-all ${
                   msg.sender === 'user' 
                   ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border border-blue-400/20 shadow-blue-900/20' 
@@ -911,7 +923,8 @@ const ChatApp = () => {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {isLoading && (
               <div className="flex w-full justify-start animate-pulse">
