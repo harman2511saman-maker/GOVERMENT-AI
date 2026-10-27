@@ -3,7 +3,7 @@ export default {
     const url = new URL(request.url);
 
     // Serve deploy.sh as raw shell script for droplet bootstrap
-    if (url.pathname === '/deploy.sh') {
+    if (url.pathname === '/deploy.sh' || url.pathname === '/update.py') {
       const asset = await env.ASSETS.fetch(request);
       const text = await asset.text();
       return new Response(text, {

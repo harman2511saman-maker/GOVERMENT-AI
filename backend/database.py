@@ -20,7 +20,7 @@ if "localhost" not in DATABASE_URL and "db" not in DATABASE_URL:
     connect_args = {"ssl_context": True} 
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
 Base = declarative_base()
 

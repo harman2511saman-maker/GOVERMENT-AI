@@ -287,12 +287,15 @@ const ChatApp = () => {
       }
     } catch (error) {
       console.error("Chat error:", error);
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        text: t.serverError,
-        sender: "bot",
-        feedback_score: 0
-      }]);
+      setMessages(prev => {
+        const withoutEmpty = prev.filter(m => m.text && m.text.trim() !== "");
+        return [...withoutEmpty, {
+          id: Date.now() + 1,
+          text: t.serverError,
+          sender: "bot",
+          feedback_score: 0
+        }];
+      });
     } finally {
       setIsLoading(false);
     }
