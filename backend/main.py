@@ -7,6 +7,7 @@ if hasattr(sys.stdout, "reconfigure"):
         pass
 
 from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -120,6 +121,7 @@ class ChatRequest(BaseModel):
     session_id: str
     user_id: str
     language: Optional[str] = "ku"
+    stream: Optional[bool] = False
 
 class SuggestionCreate(BaseModel):
     name: str = ""
@@ -306,6 +308,98 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
                 )
                 user_prompt = f"پرسیاری هاوڵاتی: {user_question}\n\nوەڵامی فەرمی:"
 
+        # Auto-title new session immediately
+        if is_new_session:
+            try:
+                clean_title = user_question.strip().replace('"', '').replace("'", "")
+                session.title = (clean_title[:38] + "...") if len(clean_title) > 38 else clean_title
+                db.commit()
+            except Exception as e:
+                print("Auto-titling failed:", e)
+
+        # ── Branch A: High-Speed Token Streaming (SSE) ──
+        if req.stream:
+            def event_stream():
+                import json
+                # Send meta event (sources + session_title)
+                yield f"data: {json.dumps({'type': 'meta', 'sources': sources, 'session_title': session.title})}\n\n"
+
+                accumulated = []
+                stream_success = False
+
+                # 1. Primary: OpenAI gpt-4o-mini streaming
+                if openai_key:
+                    try:
+                        import openai
+                        client = openai.OpenAI(api_key=openai_key)
+                        stream_obj = client.chat.completions.create(
+                            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            temperature=0,
+                            stream=True
+                        )
+                        for chunk in stream_obj:
+                            delta = chunk.choices[0].delta.content or ""
+                            if delta:
+                                accumulated.append(delta)
+                                yield f"data: {json.dumps({'type': 'chunk', 'content': delta})}\n\n"
+                        stream_success = True
+                    except Exception as oe:
+                        print(f"OpenAI stream issue: {oe}")
+
+                # 2. Resilient Fallback: Groq streaming
+                if not stream_success:
+                    groq_key = os.getenv("GROQ_API_KEY")
+                    if groq_key:
+                        try:
+                            from langchain_groq import ChatGroq
+                            groq_model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+                            llm = ChatGroq(
+                                api_key=groq_key,
+                                model_name=groq_model,
+                                temperature=0
+                            )
+                            for chunk in llm.stream([("system", system_prompt), ("human", user_prompt)]):
+                                if chunk.content:
+                                    accumulated.append(chunk.content)
+                                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk.content})}\n\n"
+                            stream_success = True
+                        except Exception as ge:
+                            print(f"Groq stream issue: {ge}")
+
+                full_answer = "".join(accumulated)
+                if not full_answer:
+                    full_answer = "ببورە، ئێستا کێشەیەک هەیە لە پەیوەندیکردنی بە سێرڤەری AI. تکایە دواتر هەوڵ بدەرەوە."
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': full_answer})}\n\n"
+
+                # Save Bot Message to DB
+                msg_id = None
+                try:
+                    with Session(engine) as sdb:
+                        bot_msg = ChatMessage(session_id=session_id, role="bot", content=full_answer)
+                        sdb.add(bot_msg)
+                        sdb.commit()
+                        sdb.refresh(bot_msg)
+                        msg_id = bot_msg.id
+                except Exception as dbe:
+                    print(f"Failed to save bot msg: {dbe}")
+
+                yield f"data: {json.dumps({'type': 'done', 'message_id': msg_id})}\n\n"
+
+            return StreamingResponse(
+                event_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no"
+                }
+            )
+
+        # ── Branch B: Non-Streaming Standard JSON ──
         answer = ""
         # 1. Primary: OpenAI gpt-4o-mini (via direct HTTP, no package dependency)
         if openai_key:
@@ -365,16 +459,6 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(bot_msg)
     msg_id = bot_msg.id
-
-    # Instant Auto-title new session (no extra LLM latency)
-    if is_new_session:
-        try:
-            # Generate clean 3-5 word title directly from the query
-            clean_title = user_question.strip().replace('"', '').replace("'", "")
-            session.title = (clean_title[:38] + "...") if len(clean_title) > 38 else clean_title
-            db.commit()
-        except Exception as e:
-            print("Auto-titling failed:", e)
 
     return {"answer": answer, "sources": sources, "message_id": msg_id, "session_title": session.title}
 

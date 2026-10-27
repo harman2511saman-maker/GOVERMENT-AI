@@ -203,7 +203,8 @@ const ChatApp = () => {
           message: textToSend, 
           session_id: currentSessionId, 
           user_id: userId,
-          language: lang
+          language: lang,
+          stream: true
         })
       });
 
@@ -219,18 +220,70 @@ const ChatApp = () => {
 
       if (!response.ok) throw new Error(t.serverError);
 
-      const data = await response.json();
-      
-      setMessages(prev => [...prev, {
-        id: data.message_id || Date.now() + 1,
-        text: data.answer,
-        sender: "bot",
-        sources: data.sources || [],
-        feedback_score: 0
-      }]);
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("text/event-stream")) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        const botMsgId = Date.now() + 1;
+        let accumulatedText = "";
+        let sources = [];
 
-      if (data.session_title) {
-         fetchSessions();
+        // Insert initial bot placeholder immediately
+        setMessages(prev => [...prev, {
+          id: botMsgId,
+          text: "",
+          sender: "bot",
+          sources: [],
+          feedback_score: 0
+        }]);
+
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || "";
+
+          for (const part of parts) {
+            const trimmed = part.trim();
+            if (trimmed.startsWith("data: ")) {
+              try {
+                const event = JSON.parse(trimmed.slice(6));
+                if (event.type === "meta") {
+                  sources = event.sources || [];
+                  if (event.session_title) {
+                    fetchSessions();
+                  }
+                  setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, sources } : m));
+                } else if (event.type === "chunk") {
+                  accumulatedText += event.content;
+                  setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, text: accumulatedText } : m));
+                } else if (event.type === "done") {
+                  if (event.message_id) {
+                    setMessages(prev => prev.map(m => m.id === botMsgId ? { ...m, id: event.message_id, text: accumulatedText, sources } : m));
+                  }
+                }
+              } catch (e) {
+                console.error("SSE parse error:", e);
+              }
+            }
+          }
+        }
+      } else {
+        const data = await response.json();
+        setMessages(prev => [...prev, {
+          id: data.message_id || Date.now() + 1,
+          text: data.answer,
+          sender: "bot",
+          sources: data.sources || [],
+          feedback_score: 0
+        }]);
+
+        if (data.session_title) {
+           fetchSessions();
+        }
       }
     } catch (error) {
       console.error("Chat error:", error);
@@ -645,11 +698,17 @@ const ChatApp = () => {
 
                   <div className="flex flex-col gap-2.5 flex-1 min-w-0">
                     <div className="leading-relaxed text-[15px] sm:text-base font-normal pt-0.5 break-words">
-                      {renderMessageText(msg.text)}
+                      {msg.text ? renderMessageText(msg.text) : (
+                        <div className="flex items-center gap-1.5 py-2 text-slate-400">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse delay-150"></span>
+                          <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse delay-300"></span>
+                        </div>
+                      )}
                     </div>
                     
                     {/* Bot Actions Footer */}
-                    {msg.sender === 'bot' && msg.id !== "welcome" && (
+                    {msg.sender === 'bot' && msg.id !== "welcome" && msg.text && (
                       <div className={`mt-3 pt-3 border-t flex flex-wrap items-center justify-between gap-2.5 ${
                         isDark ? 'border-slate-800' : 'border-slate-100'
                       }`}>
