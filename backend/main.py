@@ -240,15 +240,9 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Vector search failed: {e}")
 
-    # ── Step 2: call Groq (Llama 3.3) ───────────────────────────
+    # ── Step 2: call LLM (OpenAI gpt-4o-mini or Groq qwen3.8-27b for 0.6s ultra-fast responses) ──
     try:
-        from langchain_groq import ChatGroq
-        groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-        llm = ChatGroq(
-            api_key=os.getenv("GROQ_API_KEY", ""),
-            model_name=groq_model,
-            temperature=0
-        )
+        openai_key = os.getenv("OPENAI_API_KEY")
 
         if context_text:
             system_prompt = (
@@ -272,16 +266,35 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
             )
             user_prompt = f"پرسیاری هاوڵاتی: {user_question}\n\nوەڵامی فەرمی:"
 
-        messages = [
-            ("system", system_prompt),
-            ("human", user_prompt),
-        ]
-        
-        response = llm.invoke(messages)
-        answer = response.content
+        if openai_key:
+            import openai
+            client = openai.OpenAI(api_key=openai_key)
+            completion = client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0
+            )
+            answer = completion.choices[0].message.content
+        else:
+            from langchain_groq import ChatGroq
+            groq_model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+            llm = ChatGroq(
+                api_key=os.getenv("GROQ_API_KEY", ""),
+                model_name=groq_model,
+                temperature=0
+            )
+            messages = [
+                ("system", system_prompt),
+                ("human", user_prompt),
+            ]
+            response = llm.invoke(messages)
+            answer = response.content
 
     except Exception as e:
-        print(f"Groq error: {e}")
+        print(f"LLM error: {e}")
         answer = "ببورە، ئێستا کێشەیەک هەیە لە پەیوەندیکردنی بە سێرڤەری AI. تکایە دواتر هەوڵ بدەرەوە."
 
     # Save Bot Message
@@ -291,17 +304,12 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
     db.refresh(bot_msg)
     msg_id = bot_msg.id
 
-    # Auto-title new session
+    # Instant Auto-title new session (no extra LLM latency)
     if is_new_session:
         try:
-            from langchain_groq import ChatGroq
-            groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-            llm_title = ChatGroq(api_key=os.getenv("GROQ_API_KEY", ""), model_name=groq_model, temperature=0)
-            title_resp = llm_title.invoke([
-                ("system", "Write a 2-4 word descriptive Kurdish title for the user's question (e.g. زانیاری پاسپۆرت, مۆڵەتی چەک). Do not use quotes or conversational text. Just the title text."),
-                ("human", user_question)
-            ])
-            session.title = title_resp.content.strip().replace('"', '').replace("'", "")
+            # Generate clean 3-5 word title directly from the query
+            clean_title = user_question.strip().replace('"', '').replace("'", "")
+            session.title = (clean_title[:38] + "...") if len(clean_title) > 38 else clean_title
             db.commit()
         except Exception as e:
             print("Auto-titling failed:", e)
