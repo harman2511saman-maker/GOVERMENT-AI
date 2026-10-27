@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Send, User, Info, ShieldCheck, MessageSquare, Plus, PlusCircle, 
+  Send, User, Info, ShieldCheck, MessageSquare, Plus, 
   ThumbsUp, ThumbsDown, Printer, Menu, X, Trash2, MessageCircle, 
   Copy, Check, Globe, Sun, Moon, ChevronDown 
 } from 'lucide-react';
@@ -55,7 +55,7 @@ const ChatApp = () => {
   const messagesEndRef = useRef(null);
   const [copyStatus, setCopyStatus] = useState(null);
 
-  // Sync theme with document class and localStorage
+  // Sync theme
   const toggleTheme = () => {
     const nextTheme = isDark ? 'light' : 'dark';
     setTheme(nextTheme);
@@ -74,7 +74,7 @@ const ChatApp = () => {
     }
   }, [isDark]);
 
-  // Sync language with document direction
+  // Sync language
   const handleLanguageChange = (newLang) => {
     setLang(newLang);
     setLangDropdownOpen(false);
@@ -363,10 +363,11 @@ const ChatApp = () => {
     });
   };
 
+  // Pure language names without any emoji flags or letters like IQ / GB
   const languagesList = [
-    { code: 'ku', label: 'کوردی', nativeLabel: 'Kurdî / کوردی', flag: '☀️' },
-    { code: 'ar', label: 'العربية', nativeLabel: 'العربية', flag: '🇮🇶' },
-    { code: 'en', label: 'English', nativeLabel: 'English', flag: '🇬🇧' },
+    { code: 'ku', label: 'کوردی' },
+    { code: 'ar', label: 'العربية' },
+    { code: 'en', label: 'English' },
   ];
 
   const currentLangObj = languagesList.find(l => l.code === lang) || languagesList[0];
@@ -379,26 +380,29 @@ const ChatApp = () => {
       dir={t.dir}
     >
       
-      {/* Sidebar Overlay for Mobile and desktop toggle */}
+      {/* Mobile-Only Sidebar Overlay */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity" 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity md:hidden" 
           onClick={() => setSidebarOpen(false)} 
         />
       )}
 
-      {/* SIDEBAR - CHAT HISTORY (Clean, togglable on all screens) */}
+      {/* SIDEBAR - CHAT HISTORY
+          - On Mobile: slide-in drawer controlled by sidebarOpen
+          - On Laptop/Desktop: permanent docked sidebar without hamburger button
+      */}
       <aside 
-        className={`fixed top-0 bottom-0 z-50 w-72 md:w-80 h-full flex flex-col transition-transform duration-300 shadow-2xl ${
+        className={`fixed top-0 bottom-0 z-50 w-72 md:w-80 h-full flex flex-col transition-all duration-300 shadow-2xl md:shadow-none md:relative md:translate-x-0 ${
           isDark 
-            ? 'bg-[#0a0f1d] border-slate-800/90 text-slate-100' 
+            ? 'bg-[#0a0f1d] border-slate-800 text-slate-100' 
             : 'bg-white border-slate-200 text-slate-800'
         } ${
-          t.dir === 'rtl' ? 'border-r right-0' : 'border-l left-0'
+          t.dir === 'rtl' ? 'border-r right-0 md:order-last' : 'border-l left-0 md:order-first'
         } ${
           sidebarOpen 
             ? 'translate-x-0' 
-            : (t.dir === 'rtl' ? 'translate-x-full' : '-translate-x-full')
+            : (t.dir === 'rtl' ? 'translate-x-full md:translate-x-0' : '-translate-x-full md:translate-x-0')
         }`}
       >
         
@@ -410,8 +414,9 @@ const ChatApp = () => {
              <MessageSquare size={18} className={isDark ? "text-amber-400" : "text-blue-600"} />
              {t.chatHistory}
            </h2>
+           {/* Close Button - ONLY on mobile */}
            <button 
-             className={`p-2 rounded-xl transition-colors ${
+             className={`p-2 rounded-xl transition-colors md:hidden ${
                isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
              }`} 
              onClick={() => setSidebarOpen(false)}
@@ -421,23 +426,22 @@ const ChatApp = () => {
            </button>
         </div>
 
+        {/* PRIMARY "NEW CHAT" BUTTON - INSIDE SIDEBAR ONLY */}
+        <div className="p-3 pb-1">
+          <button
+            onClick={startNewChat}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-bold transition-all shadow-md active:scale-95 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white"
+          >
+            <Plus size={18} className="stroke-[2.5]" />
+            <span>{t.newChat}</span>
+          </button>
+        </div>
+
         {/* History List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          <div className="flex items-center justify-between px-2 mb-2">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
-              {t.chatHistorySub}
-            </h3>
-            <button
-              onClick={startNewChat}
-              className={`p-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                isDark ? 'text-amber-400 hover:bg-slate-800' : 'text-blue-600 hover:bg-slate-100'
-              }`}
-              title={t.newChat}
-            >
-              <Plus size={14} />
-              <span>{t.newChat}</span>
-            </button>
-          </div>
+        <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 px-2 mt-2 mb-2">
+            {t.chatHistorySub}
+          </h3>
 
           {sessions.length === 0 ? (
             <p className="text-xs text-center text-slate-500 mt-12">{t.noChats}</p>
@@ -480,15 +484,15 @@ const ChatApp = () => {
         }`}>
           <button 
             onClick={() => { setShowSuggestion(true); setSuggestionSent(false); }}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md active:scale-95 text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-sm active:scale-95 text-xs sm:text-sm border border-slate-700"
           >
-            <MessageCircle size={18} />
+            <MessageCircle size={17} />
             {t.sendFeedbackBtn}
           </button>
         </div>
       </aside>
 
-      {/* MAIN CONTAINER */}
+      {/* MAIN CHAT AREA */}
       <div className="flex-1 flex flex-col h-full min-w-0 relative">
         
         {/* RESPONSIVE HEADER */}
@@ -499,16 +503,16 @@ const ChatApp = () => {
         }`}>
           <div className="max-w-7xl mx-auto px-3 py-2.5 sm:px-5 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-4">
             
-            {/* Left side (in RTL) / Right side (in LTR): 3-Lines Menu + Branding */}
+            {/* Branding + Mobile Hamburger Button */}
             <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
               
-              {/* 3-LINES HAMBURGER MENU BUTTON (Always clearly visible & accessible!) */}
+              {/* 3-LINES HAMBURGER MENU BUTTON - ONLY FOR MOBILE (md:hidden) */}
               <button 
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className={`p-2 sm:p-2.5 rounded-xl transition-all flex items-center justify-center flex-shrink-0 border shadow-sm ${
+                onClick={() => setSidebarOpen(true)}
+                className={`p-2 rounded-xl transition-all flex items-center justify-center flex-shrink-0 border shadow-sm md:hidden ${
                   isDark 
-                    ? 'bg-[#131d33] hover:bg-[#1a2744] border-slate-700 text-amber-400 hover:text-amber-300' 
-                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-blue-700 hover:text-blue-800'
+                    ? 'bg-[#131d33] hover:bg-[#1a2744] border-slate-700 text-amber-400' 
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-blue-700'
                 }`}
                 title={t.chatHistory}
                 aria-label="Toggle chat history"
@@ -530,7 +534,7 @@ const ChatApp = () => {
                 </span>
               </div>
 
-              {/* Title & Subtitle (WITHOUT crown icon as requested) */}
+              {/* Title & Subtitle */}
               <div className="flex flex-col justify-center min-w-0">
                 <h1 className="text-base sm:text-lg md:text-xl font-bold tracking-tight truncate leading-tight">
                   {t.title}
@@ -544,19 +548,9 @@ const ChatApp = () => {
               </div>
             </div>
 
-            {/* Right side (in RTL) / Left side (in LTR): Controls (New Chat, Theme, Language Dropdown) */}
-            <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
+            {/* Header Right Controls: Theme Toggle + Language Dropdown (NO "New Chat" button here!) */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               
-              {/* NEW CHAT BUTTON (Clearly visible) */}
-              <button 
-                onClick={startNewChat} 
-                className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-xs font-bold rounded-xl transition-all shadow-md active:scale-95 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white"
-                title={t.newChat}
-              >
-                <Plus size={16} className="stroke-[2.5]" />
-                <span className="hidden sm:inline">{t.newChat}</span>
-              </button>
-
               {/* THEME TOGGLE (Dark / Light Mode) */}
               <button
                 onClick={toggleTheme}
@@ -568,14 +562,14 @@ const ChatApp = () => {
                 title={isDark ? t.lightMode : t.darkMode}
                 aria-label="Toggle Dark / Light theme"
               >
-                {isDark ? <Sun size={18} className="animate-in spin-in-180 duration-300" /> : <Moon size={18} className="animate-in spin-in-180 duration-300" />}
+                {isDark ? <Sun size={17} /> : <Moon size={17} />}
               </button>
 
-              {/* LANGUAGE DROPDOWN */}
+              {/* LANGUAGE DROPDOWN (Clean names only, no flag icons/letters) */}
               <div className="relative" ref={langDropdownRef}>
                 <button
                   onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm ${
                     isDark 
                       ? 'bg-[#131d33] hover:bg-[#1a2744] border-slate-700 text-slate-100' 
                       : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
@@ -583,14 +577,13 @@ const ChatApp = () => {
                   aria-expanded={langDropdownOpen}
                 >
                   <Globe size={15} className={isDark ? "text-amber-400" : "text-blue-600"} />
-                  <span className="text-xs">{currentLangObj.flag}</span>
-                  <span className="hidden sm:inline font-bold">{currentLangObj.label}</span>
+                  <span className="font-bold">{currentLangObj.label}</span>
                   <ChevronDown size={14} className={`opacity-70 transition-transform duration-200 ${langDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* Dropdown Menu */}
                 {langDropdownOpen && (
-                  <div className={`absolute top-full mt-2 w-40 sm:w-44 rounded-2xl shadow-2xl border p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                  <div className={`absolute top-full mt-2 w-36 rounded-2xl shadow-2xl border p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 ${
                     t.dir === 'rtl' ? 'left-0' : 'right-0'
                   } ${
                     isDark ? 'bg-[#0f172a] border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
@@ -601,14 +594,11 @@ const ChatApp = () => {
                         onClick={() => handleLanguageChange(item.code)}
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
                           lang === item.code 
-                            ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white')
+                            ? 'bg-blue-600 text-white'
                             : (isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900')
                         }`}
                       >
-                        <div className="flex items-center gap-2">
-                          <span>{item.flag}</span>
-                          <span>{item.nativeLabel}</span>
-                        </div>
+                        <span>{item.label}</span>
                         {lang === item.code && <Check size={14} className="stroke-[3]" />}
                       </button>
                     ))}
