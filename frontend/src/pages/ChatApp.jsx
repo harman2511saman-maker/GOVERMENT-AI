@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, User, Crown, Info, ShieldCheck, MessageSquare, PlusCircle, ThumbsUp, ThumbsDown, Printer, Menu, X, Trash2, MessageCircle, Copy, Check, Globe } from 'lucide-react';
+import { 
+  Send, User, Info, ShieldCheck, MessageSquare, Plus, PlusCircle, 
+  ThumbsUp, ThumbsDown, Printer, Menu, X, Trash2, MessageCircle, 
+  Copy, Check, Globe, Sun, Moon, ChevronDown 
+} from 'lucide-react';
 import logoImage from '../assets/images.jpg';
 import { translations } from '../utils/translations';
 
@@ -20,8 +24,15 @@ const ChatApp = () => {
   const [currentSessionId, setCurrentSessionId] = useState(generateSessionId());
   const [sessions, setSessions] = useState([]);
   
+  // Theme State: 'dark' or 'light'
+  const [theme, setTheme] = useState(() => localStorage.getItem('gov_theme') || 'dark');
+  const isDark = theme === 'dark';
+
   // Language State: 'ku' (Kurdish), 'ar' (Arabic), 'en' (English)
   const [lang, setLang] = useState(() => localStorage.getItem('gov_lang') || 'ku');
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const langDropdownRef = useRef(null);
+
   const t = translations[lang] || translations.ku;
 
   const [messages, setMessages] = useState([
@@ -42,17 +53,36 @@ const ChatApp = () => {
   const [suggestionSending, setSuggestionSending] = useState(false);
   const [suggestionSent, setSuggestionSent] = useState(false);
   const messagesEndRef = useRef(null);
-  const [copyStatus, setCopyStatus] = useState(null); // stores message id being copied
+  const [copyStatus, setCopyStatus] = useState(null);
 
-  // Change Language Handler
+  // Sync theme with document class and localStorage
+  const toggleTheme = () => {
+    const nextTheme = isDark ? 'light' : 'dark';
+    setTheme(nextTheme);
+    localStorage.setItem('gov_theme', nextTheme);
+  };
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      document.body.style.backgroundColor = '#070b14';
+      document.body.style.color = '#f8fafc';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.style.backgroundColor = '#f8fafc';
+      document.body.style.color = '#0f172a';
+    }
+  }, [isDark]);
+
+  // Sync language with document direction
   const handleLanguageChange = (newLang) => {
-    if (newLang === lang) return;
     setLang(newLang);
+    setLangDropdownOpen(false);
     localStorage.setItem('gov_lang', newLang);
     document.documentElement.dir = translations[newLang].dir;
     document.documentElement.lang = newLang;
 
-    // Update welcome message if no conversation has started yet
+    // Update welcome message if conversation hasn't started yet
     setMessages(prev => prev.map(m => {
       if (m.id === "welcome") {
         return { ...m, text: translations[newLang].welcome };
@@ -65,6 +95,17 @@ const ChatApp = () => {
     document.documentElement.dir = t.dir;
     document.documentElement.lang = lang;
   }, [lang, t.dir]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(event.target)) {
+        setLangDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Load Sessions History
   const fetchSessions = async () => {
@@ -81,7 +122,7 @@ const ChatApp = () => {
     fetchSessions();
   }, [userId]);
 
-  // Auto scroll to bottom
+  // Auto scroll
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -90,7 +131,7 @@ const ChatApp = () => {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Load specific past session
+  // Load past session
   const loadSession = async (sessionId) => {
     setIsLoading(true);
     try {
@@ -308,7 +349,11 @@ const ChatApp = () => {
           <button
             key={idx}
             onClick={() => handleSend(optionText)}
-            className="inline-block mt-2 mb-2 mx-1 px-4 py-1.5 bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-black border border-amber-500/40 rounded-full transition-all text-sm font-bold shadow-sm active:scale-95"
+            className={`inline-block mt-2 mb-2 mx-1 px-4 py-1.5 rounded-full transition-all text-sm font-bold shadow-sm active:scale-95 ${
+              isDark 
+                ? 'bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-black border border-amber-500/40' 
+                : 'bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200'
+            }`}
           >
             {optionText}
           </button>
@@ -318,39 +363,84 @@ const ChatApp = () => {
     });
   };
 
+  const languagesList = [
+    { code: 'ku', label: 'کوردی', nativeLabel: 'Kurdî / کوردی', flag: '☀️' },
+    { code: 'ar', label: 'العربية', nativeLabel: 'العربية', flag: '🇮🇶' },
+    { code: 'en', label: 'English', nativeLabel: 'English', flag: '🇬🇧' },
+  ];
+
+  const currentLangObj = languagesList.find(l => l.code === lang) || languagesList[0];
+
   return (
-    <div className="fixed inset-0 flex overflow-hidden bg-[#070b14] text-slate-100 font-sans selection:bg-blue-600 selection:text-white" dir={t.dir}>
+    <div 
+      className={`fixed inset-0 flex overflow-hidden font-sans transition-colors duration-300 ${
+        isDark ? 'bg-[#070b14] text-slate-100' : 'bg-[#f8fafc] text-slate-800'
+      }`} 
+      dir={t.dir}
+    >
       
-      {/* Sidebar Overlay for Mobile */}
+      {/* Sidebar Overlay for Mobile and desktop toggle */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity" 
+          onClick={() => setSidebarOpen(false)} 
+        />
       )}
 
-      {/* SIDEBAR - CHAT HISTORY */}
-      <aside className={`fixed top-0 bottom-0 z-50 w-72 h-full bg-[#0a0f1d] border-slate-800/90 md:relative md:order-last shadow-2xl md:shadow-none flex flex-col transition-transform duration-300 ${
-        t.dir === 'rtl' ? 'border-r left-0' : 'border-l right-0'
-      } ${
-        sidebarOpen 
-          ? 'translate-x-0' 
-          : (t.dir === 'rtl' ? '-translate-x-full md:translate-x-0' : 'translate-x-full md:translate-x-0')
-      }`}>
+      {/* SIDEBAR - CHAT HISTORY (Clean, togglable on all screens) */}
+      <aside 
+        className={`fixed top-0 bottom-0 z-50 w-72 md:w-80 h-full flex flex-col transition-transform duration-300 shadow-2xl ${
+          isDark 
+            ? 'bg-[#0a0f1d] border-slate-800/90 text-slate-100' 
+            : 'bg-white border-slate-200 text-slate-800'
+        } ${
+          t.dir === 'rtl' ? 'border-r right-0' : 'border-l left-0'
+        } ${
+          sidebarOpen 
+            ? 'translate-x-0' 
+            : (t.dir === 'rtl' ? 'translate-x-full' : '-translate-x-full')
+        }`}
+      >
         
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-slate-800/80 flex items-center justify-between bg-[#0d1424]">
-           <h2 className="text-sm font-black text-white flex items-center gap-2">
-             <MessageSquare size={18} className="text-amber-400" />
+        <div className={`p-4 border-b flex items-center justify-between ${
+          isDark ? 'bg-[#0d1424] border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}>
+           <h2 className="text-sm font-black flex items-center gap-2">
+             <MessageSquare size={18} className={isDark ? "text-amber-400" : "text-blue-600"} />
              {t.chatHistory}
            </h2>
-           <button className="md:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors" onClick={() => setSidebarOpen(false)}>
-             <X size={20} className="stroke-[2.5]" />
+           <button 
+             className={`p-2 rounded-xl transition-colors ${
+               isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+             }`} 
+             onClick={() => setSidebarOpen(false)}
+             title={t.close}
+           >
+             <X size={20} />
            </button>
         </div>
 
         {/* History List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 px-2 mt-2">{t.chatHistorySub}</h3>
+          <div className="flex items-center justify-between px-2 mb-2">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+              {t.chatHistorySub}
+            </h3>
+            <button
+              onClick={startNewChat}
+              className={`p-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                isDark ? 'text-amber-400 hover:bg-slate-800' : 'text-blue-600 hover:bg-slate-100'
+              }`}
+              title={t.newChat}
+            >
+              <Plus size={14} />
+              <span>{t.newChat}</span>
+            </button>
+          </div>
+
           {sessions.length === 0 ? (
-            <p className="text-xs text-center text-slate-500 mt-10">{t.noChats}</p>
+            <p className="text-xs text-center text-slate-500 mt-12">{t.noChats}</p>
           ) : (
             sessions.map(s => (
               <div 
@@ -358,15 +448,23 @@ const ChatApp = () => {
                 onClick={() => loadSession(s.id)}
                 className={`group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
                   s.id === currentSessionId 
-                    ? 'bg-blue-600/20 border-blue-500/40 text-blue-300 font-bold shadow-md shadow-blue-900/20' 
-                    : 'bg-transparent border-transparent hover:bg-slate-850 hover:bg-slate-800/50 text-slate-300'
+                    ? (isDark 
+                        ? 'bg-blue-600/20 border-blue-500/40 text-blue-300 font-bold shadow-md' 
+                        : 'bg-blue-50 border-blue-200 text-blue-700 font-bold shadow-sm')
+                    : (isDark 
+                        ? 'bg-transparent border-transparent hover:bg-slate-800/60 text-slate-300' 
+                        : 'bg-transparent border-transparent hover:bg-slate-100 text-slate-700')
                 }`}
               >
-                <MessageSquare size={18} className={`${s.id === currentSessionId ? 'text-amber-400' : 'text-slate-500 group-hover:text-blue-400 transition-colors'}`} />
+                <MessageSquare size={16} className={`${
+                  s.id === currentSessionId 
+                    ? (isDark ? 'text-amber-400' : 'text-blue-600') 
+                    : 'text-slate-400 group-hover:text-blue-500 transition-colors'
+                }`} />
                 <span className="flex-1 text-sm truncate">{s.title || t.newChat}</span>
                 <button 
                   onClick={(e) => deleteSession(e, s.id)}
-                  className="opacity-30 hover:opacity-100 text-slate-400 hover:text-rose-400 transition-all p-1"
+                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-500 transition-all p-1"
                   title="Delete"
                 >
                   <Trash2 size={16} />
@@ -377,10 +475,12 @@ const ChatApp = () => {
         </div>
 
         {/* Sidebar Footer - Suggestion Button */}
-        <div className="flex-none p-3 border-t border-slate-800/80 bg-[#0d1424]">
+        <div className={`flex-none p-3 border-t ${
+          isDark ? 'border-slate-800 bg-[#0d1424]' : 'border-slate-200 bg-slate-50'
+        }`}>
           <button 
             onClick={() => { setShowSuggestion(true); setSuggestionSent(false); }}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-blue-900/30 active:scale-95 text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-md active:scale-95 text-sm"
           >
             <MessageCircle size={18} />
             {t.sendFeedbackBtn}
@@ -388,154 +488,227 @@ const ChatApp = () => {
         </div>
       </aside>
 
-      {/* MAIN CHAT AREA */}
-      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#070b14] relative">
+      {/* MAIN CONTAINER */}
+      <div className="flex-1 flex flex-col h-full min-w-0 relative">
         
-        {/* Header */}
-        <header className="flex-none bg-[#0a0f1d]/95 backdrop-blur-xl z-20 text-white shadow-2xl border-b border-amber-500/30">
-          <div className="px-4 py-3.5 md:px-6 md:py-4 flex items-center justify-between gap-3">
+        {/* RESPONSIVE HEADER */}
+        <header className={`flex-none z-20 transition-colors duration-300 shadow-md ${
+          isDark 
+            ? 'bg-[#0a0f1d]/95 backdrop-blur-xl border-b border-slate-800/80 text-white' 
+            : 'bg-white/95 backdrop-blur-xl border-b border-slate-200 text-slate-900'
+        }`}>
+          <div className="max-w-7xl mx-auto px-3 py-2.5 sm:px-5 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-4">
             
-            {/* Branding */}
-            <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
+            {/* Left side (in RTL) / Right side (in LTR): 3-Lines Menu + Branding */}
+            <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+              
+              {/* 3-LINES HAMBURGER MENU BUTTON (Always clearly visible & accessible!) */}
+              <button 
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className={`p-2 sm:p-2.5 rounded-xl transition-all flex items-center justify-center flex-shrink-0 border shadow-sm ${
+                  isDark 
+                    ? 'bg-[#131d33] hover:bg-[#1a2744] border-slate-700 text-amber-400 hover:text-amber-300' 
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-blue-700 hover:text-blue-800'
+                }`}
+                title={t.chatHistory}
+                aria-label="Toggle chat history"
+              >
+                <Menu size={20} className="stroke-[2.5]" />
+              </button>
+
+              {/* Logo */}
               <div className="relative flex-shrink-0">
-                <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 to-yellow-500 rounded-full blur opacity-40"></div>
-                <img src={logoImage} alt="KRG Logo" className="relative w-11 h-11 md:w-13 md:h-13 object-cover rounded-full border-2 border-amber-400 shadow-xl object-center bg-slate-900" />
-                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] md:text-[8px] font-black px-1.5 py-0.2 rounded-full border border-blue-400 shadow-sm flex items-center gap-0.5 tracking-wider whitespace-nowrap">
-                  <ShieldCheck size={9} /> {t.official}
+                <img 
+                  src={logoImage} 
+                  alt="KRG Logo" 
+                  className={`w-9 h-9 sm:w-11 sm:h-11 object-cover rounded-full border-2 shadow-md ${
+                    isDark ? 'border-amber-400/80 bg-slate-900' : 'border-blue-600 bg-white'
+                  }`} 
+                />
+                <span className="hidden sm:flex absolute -bottom-1 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full border border-blue-400 shadow-sm items-center gap-0.5 tracking-wider whitespace-nowrap">
+                  <ShieldCheck size={8} /> {t.official}
                 </span>
               </div>
+
+              {/* Title & Subtitle (WITHOUT crown icon as requested) */}
               <div className="flex flex-col justify-center min-w-0">
-                <h1 className="text-[17px] md:text-xl font-bold tracking-tight flex items-center gap-1.5 md:gap-2 text-white whitespace-nowrap">
-                  <Crown size={18} className="text-amber-400 flex-shrink-0" />
+                <h1 className="text-base sm:text-lg md:text-xl font-bold tracking-tight truncate leading-tight">
                   {t.title}
                 </h1>
-                <span className="flex text-[10px] md:text-xs text-slate-300 font-medium tracking-wide items-center gap-1.5 mt-0.5">
-                  <ShieldCheck size={12} className="text-amber-400 opacity-90" /> {t.subtitle}
+                <span className={`hidden sm:flex text-[11px] md:text-xs font-medium items-center gap-1 mt-0.5 ${
+                  isDark ? 'text-slate-400' : 'text-slate-500'
+                }`}>
+                  <ShieldCheck size={12} className={isDark ? "text-amber-400" : "text-blue-600"} />
+                  <span className="truncate">{t.subtitle}</span>
                 </span>
               </div>
             </div>
 
-            {/* Language Switcher & Actions */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Right side (in RTL) / Left side (in LTR): Controls (New Chat, Theme, Language Dropdown) */}
+            <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
               
-              {/* Language Switcher Selector */}
-              <div className="flex items-center bg-[#070b14] p-1 rounded-xl border border-slate-700/80 shadow-inner">
-                {[
-                  { code: 'ku', label: 'کوردی', flag: '☀️' },
-                  { code: 'ar', label: 'العربية', flag: '🇮🇶' },
-                  { code: 'en', label: 'English', flag: '🇬🇧' },
-                ].map((item) => (
-                  <button
-                    key={item.code}
-                    onClick={() => handleLanguageChange(item.code)}
-                    className={`flex items-center gap-1 px-2 md:px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                      lang === item.code
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <span className="text-xs">{item.flag}</span>
-                    <span className="hidden sm:inline">{item.label}</span>
-                    <span className="sm:hidden uppercase">{item.code}</span>
-                  </button>
-                ))}
+              {/* NEW CHAT BUTTON (Clearly visible) */}
+              <button 
+                onClick={startNewChat} 
+                className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-xs font-bold rounded-xl transition-all shadow-md active:scale-95 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white"
+                title={t.newChat}
+              >
+                <Plus size={16} className="stroke-[2.5]" />
+                <span className="hidden sm:inline">{t.newChat}</span>
+              </button>
+
+              {/* THEME TOGGLE (Dark / Light Mode) */}
+              <button
+                onClick={toggleTheme}
+                className={`p-2 sm:p-2.5 rounded-xl border transition-all flex items-center justify-center shadow-sm ${
+                  isDark 
+                    ? 'bg-[#131d33] hover:bg-[#1a2744] border-slate-700 text-amber-400 hover:text-amber-300' 
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700 hover:text-slate-900'
+                }`}
+                title={isDark ? t.lightMode : t.darkMode}
+                aria-label="Toggle Dark / Light theme"
+              >
+                {isDark ? <Sun size={18} className="animate-in spin-in-180 duration-300" /> : <Moon size={18} className="animate-in spin-in-180 duration-300" />}
+              </button>
+
+              {/* LANGUAGE DROPDOWN */}
+              <div className="relative" ref={langDropdownRef}>
+                <button
+                  onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold border transition-all shadow-sm ${
+                    isDark 
+                      ? 'bg-[#131d33] hover:bg-[#1a2744] border-slate-700 text-slate-100' 
+                      : 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                  }`}
+                  aria-expanded={langDropdownOpen}
+                >
+                  <Globe size={15} className={isDark ? "text-amber-400" : "text-blue-600"} />
+                  <span className="text-xs">{currentLangObj.flag}</span>
+                  <span className="hidden sm:inline font-bold">{currentLangObj.label}</span>
+                  <ChevronDown size={14} className={`opacity-70 transition-transform duration-200 ${langDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {langDropdownOpen && (
+                  <div className={`absolute top-full mt-2 w-40 sm:w-44 rounded-2xl shadow-2xl border p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 ${
+                    t.dir === 'rtl' ? 'left-0' : 'right-0'
+                  } ${
+                    isDark ? 'bg-[#0f172a] border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
+                  }`}>
+                    {languagesList.map((item) => (
+                      <button
+                        key={item.code}
+                        onClick={() => handleLanguageChange(item.code)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                          lang === item.code 
+                            ? (isDark ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white')
+                            : (isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900')
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{item.flag}</span>
+                          <span>{item.nativeLabel}</span>
+                        </div>
+                        {lang === item.code && <Check size={14} className="stroke-[3]" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* New Chat Button (Desktop & Mobile) */}
-              <button 
-                onClick={startNewChat} 
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-xl transition-all shadow-md active:scale-95"
-                title={t.newChat}
-              >
-                <PlusCircle size={16} />
-                <span>{t.newChat}</span>
-              </button>
-
-              {/* Mobile Actions */}
-              <button 
-                onClick={startNewChat} 
-                className="sm:hidden p-2 text-slate-900 bg-amber-400 hover:bg-amber-300 rounded-xl transition-all shadow-md active:scale-95"
-                title={t.newChat}
-              >
-                <PlusCircle size={18} />
-              </button>
-              <button 
-                className="p-2 text-slate-300 bg-slate-800/80 rounded-xl hover:bg-slate-700 transition-all md:hidden border border-slate-700" 
-                onClick={() => setSidebarOpen(true)}
-                title={t.chatHistory}
-              >
-                <Menu size={18} />
-              </button>
             </div>
           </div>
         </header>
 
-        {/* Messages Container */}
-        <main id="scroll-container" className="flex-1 overflow-y-auto scroll-smooth z-10 p-3 md:p-8 bg-[#070b14]">
-          <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-6 pt-4">
+        {/* CHAT MESSAGES CONTAINER */}
+        <main id="scroll-container" className={`flex-1 overflow-y-auto scroll-smooth z-10 p-3 sm:p-5 md:p-8 transition-colors duration-300 ${
+          isDark ? 'bg-[#070b14]' : 'bg-[#f8fafc]'
+        }`}>
+          <div className="max-w-4xl mx-auto flex flex-col gap-5 sm:gap-6 pb-6 pt-2">
             
             {messages.map(msg => (
               <div key={msg.id} className={`flex w-full ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} animate-message`}>
-                <div className={`max-w-[98%] md:max-w-[85%] p-4 md:p-5 rounded-2xl flex gap-3 md:gap-4 shadow-xl relative group ${
+                <div className={`max-w-[98%] sm:max-w-[90%] md:max-w-[85%] p-4 sm:p-5 rounded-2xl flex gap-3 sm:gap-4 shadow-md relative group transition-all ${
                   msg.sender === 'user' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border border-blue-400/20 shadow-blue-950/40' 
-                  : 'bg-[#0f172a] border border-slate-800 text-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.5)]'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border border-blue-400/20 shadow-blue-900/20' 
+                  : (isDark 
+                      ? 'bg-[#0f172a] border border-slate-800 text-slate-100 shadow-[0_4px_30px_rgba(0,0,0,0.5)]' 
+                      : 'bg-white border border-slate-200 text-slate-800 shadow-[0_4px_25px_rgba(0,0,0,0.04)]')
                 }`}>
                   <div className="mt-1 flex-shrink-0">
                     {msg.sender === 'user' ? (
-                      <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-amber-300 border border-white/20 shadow-inner">
-                        <User size={20} className="text-white" />
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 flex items-center justify-center text-white border border-white/20 shadow-inner">
+                        <User size={18} className="text-white" />
                       </div>
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center border border-amber-500/30 shadow-md overflow-hidden">
+                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border shadow-md overflow-hidden ${
+                        isDark ? 'bg-slate-900 border-amber-500/30' : 'bg-slate-50 border-blue-200'
+                      }`}>
                          <img src={logoImage} alt="AI" className="w-full h-full object-cover" />
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-col gap-3 flex-1 min-w-0">
-                    <div className="leading-loose text-[16px] md:text-base font-normal pt-1 break-words text-slate-100">
+
+                  <div className="flex flex-col gap-2.5 flex-1 min-w-0">
+                    <div className="leading-relaxed text-[15px] sm:text-base font-normal pt-0.5 break-words">
                       {renderMessageText(msg.text)}
                     </div>
                     
                     {/* Bot Actions Footer */}
                     {msg.sender === 'bot' && msg.id !== "welcome" && (
-                      <div className="mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                        {/* Feedback & Print Group */}
-                        <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="flex items-center gap-1.5 bg-[#0b1120] p-1.5 rounded-xl border border-slate-800 shadow-inner">
+                      <div className={`mt-3 pt-3 border-t flex flex-wrap items-center justify-between gap-2.5 ${
+                        isDark ? 'border-slate-800' : 'border-slate-100'
+                      }`}>
+                        {/* Feedback & Tools */}
+                        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                            <div className={`flex items-center gap-1 p-1 rounded-xl border shadow-inner ${
+                              isDark ? 'bg-[#0b1120] border-slate-800' : 'bg-slate-50 border-slate-200'
+                            }`}>
                                <button 
                                  onClick={() => sendFeedback(msg.id, 1)}
-                                 className={`p-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold ${msg.feedback_score === 1 ? 'bg-emerald-950 text-emerald-400' : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800'}`}
+                                 className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-bold ${
+                                   msg.feedback_score === 1 
+                                     ? (isDark ? 'bg-emerald-950 text-emerald-400' : 'bg-emerald-100 text-emerald-700')
+                                     : (isDark ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800' : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-200')
+                                 }`}
                                  title={t.goodFeedback}
                                >
-                                 <ThumbsUp size={16} className={msg.feedback_score === 1 ? "fill-current" : ""} />
+                                 <ThumbsUp size={15} className={msg.feedback_score === 1 ? "fill-current" : ""} />
                                </button>
-                               <div className="w-[1px] h-3.5 bg-slate-800"></div>
+                               <div className={`w-[1px] h-3.5 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
                                <button 
                                  onClick={() => sendFeedback(msg.id, -1)}
-                                 className={`p-1.5 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold ${msg.feedback_score === -1 ? 'bg-rose-950 text-rose-400' : 'text-slate-400 hover:text-rose-400 hover:bg-slate-800'}`}
+                                 className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-bold ${
+                                   msg.feedback_score === -1 
+                                     ? (isDark ? 'bg-rose-950 text-rose-400' : 'bg-rose-100 text-rose-700')
+                                     : (isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-400 hover:text-rose-600 hover:bg-slate-200')
+                                 }`}
                                  title={t.badFeedback}
                                >
-                                 <ThumbsDown size={16} className={msg.feedback_score === -1 ? "fill-current" : ""} />
+                                 <ThumbsDown size={15} className={msg.feedback_score === -1 ? "fill-current" : ""} />
                                </button>
                             </div>
 
                             <button 
                               onClick={() => handlePrint(msg.text)}
-                              className="flex items-center gap-1.5 text-xs font-bold text-slate-200 bg-[#0b1120] hover:bg-slate-800 py-2 px-3.5 rounded-xl transition-colors border border-slate-800 shadow-sm"
+                              className={`flex items-center gap-1.5 text-xs font-bold py-1.5 px-3 rounded-xl transition-colors border shadow-sm ${
+                                isDark 
+                                  ? 'bg-[#0b1120] hover:bg-slate-800 text-slate-200 border-slate-800' 
+                                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                              }`}
                             >
-                              <Printer size={14} className="text-amber-400" /> {t.pdf}
+                              <Printer size={13} className={isDark ? "text-amber-400" : "text-blue-600"} /> {t.pdf}
                             </button>
 
                             <button 
                               onClick={() => handleCopy(msg.text, msg.id)}
-                              className={`flex items-center gap-1.5 text-xs font-bold py-2 px-3.5 rounded-xl transition-all border shadow-sm ${
+                              className={`flex items-center gap-1.5 text-xs font-bold py-1.5 px-3 rounded-xl transition-all border shadow-sm ${
                                 copyStatus === msg.id 
-                                ? 'bg-emerald-950 text-emerald-300 border-emerald-700' 
-                                : 'bg-[#0b1120] text-slate-200 hover:bg-slate-800 border-slate-800'
+                                  ? (isDark ? 'bg-emerald-950 text-emerald-300 border-emerald-700' : 'bg-emerald-50 text-emerald-700 border-emerald-300')
+                                  : (isDark ? 'bg-[#0b1120] text-slate-200 hover:bg-slate-800 border-slate-800' : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200')
                               }`}
                             >
-                              {copyStatus === msg.id ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-amber-400" />}
+                              {copyStatus === msg.id ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} className={isDark ? "text-amber-400" : "text-blue-600"} />}
                               {copyStatus === msg.id ? t.copied : t.copy}
                             </button>
                         </div>
@@ -543,8 +716,10 @@ const ChatApp = () => {
                         {/* Sources */}
                         {msg.sources && msg.sources.length > 0 && (
                           <div className="w-full mt-2">
-                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                               <Crown size={12} className="text-amber-400" />
+                             <p className={`text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1.5 ${
+                               isDark ? 'text-slate-400' : 'text-slate-500'
+                             }`}>
+                               <Info size={13} className={isDark ? "text-amber-400" : "text-blue-600"} />
                                {t.sourcesTitle}
                              </p>
                              <ul className="space-y-1.5">
@@ -552,13 +727,21 @@ const ChatApp = () => {
                                  <li key={idx}>
                                    <button 
                                      onClick={() => setSelectedSource(src)}
-                                     className="w-full flex items-center gap-2 bg-[#0b1120] hover:bg-[#131d33] text-slate-200 hover:text-amber-300 text-[12px] font-bold py-2 px-3 rounded-xl transition-all border border-slate-800 hover:border-amber-500/40 group text-start"
+                                     className={`w-full flex items-center gap-2 py-1.5 px-3 rounded-xl transition-all border text-[12px] font-bold group text-start ${
+                                       isDark 
+                                         ? 'bg-[#0b1120] hover:bg-[#131d33] text-slate-200 hover:text-amber-300 border-slate-800 hover:border-amber-500/40' 
+                                         : 'bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                     }`}
                                    >
-                                     <div className="w-5 h-5 rounded-md bg-slate-900 shadow-sm flex items-center justify-center text-[9px] text-amber-400 border border-slate-800 group-hover:bg-amber-400 group-hover:text-black transition-colors">
+                                     <div className={`w-5 h-5 rounded-md shadow-sm flex items-center justify-center text-[9px] font-bold border transition-colors ${
+                                       isDark 
+                                         ? 'bg-slate-900 text-amber-400 border-slate-800 group-hover:bg-amber-400 group-hover:text-black' 
+                                         : 'bg-white text-blue-600 border-slate-200 group-hover:bg-blue-600 group-hover:text-white'
+                                     }`}>
                                        {idx + 1}
                                      </div>
                                      <span className="flex-1 truncate">{src.title}</span>
-                                     <Info size={14} className="text-amber-400 opacity-60 group-hover:opacity-100" />
+                                     <Info size={13} className="opacity-60 group-hover:opacity-100" />
                                    </button>
                                  </li>
                                ))}
@@ -574,14 +757,16 @@ const ChatApp = () => {
 
             {isLoading && (
               <div className="flex w-full justify-start animate-pulse">
-                <div className="bg-[#0f172a] border border-slate-800 p-4 rounded-2xl flex items-center gap-3 shadow-lg">
-                   <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center overflow-hidden border border-amber-500/30">
+                <div className={`border p-3.5 sm:p-4 rounded-2xl flex items-center gap-3 shadow-md ${
+                  isDark ? 'bg-[#0f172a] border-slate-800' : 'bg-white border-slate-200'
+                }`}>
+                   <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-900 flex items-center justify-center overflow-hidden">
                       <img src={logoImage} alt="AI" className="w-full h-full object-cover opacity-60" />
                    </div>
                    <div className="flex gap-1.5">
-                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
                    </div>
                 </div>
               </div>
@@ -590,14 +775,22 @@ const ChatApp = () => {
           </div>
         </main>
 
-        {/* Input Footer */}
-        <footer className="flex-none bg-[#0a0f1d]/95 backdrop-blur-xl z-20 border-t border-slate-800/80 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] p-3 md:p-6 pb-5 md:pb-7">
+        {/* INPUT FOOTER */}
+        <footer className={`flex-none z-20 border-t transition-colors duration-300 p-3 sm:p-5 pb-5 sm:pb-7 ${
+          isDark 
+            ? 'bg-[#0a0f1d]/95 backdrop-blur-xl border-slate-800/80 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]' 
+            : 'bg-white/95 backdrop-blur-xl border-slate-200 shadow-[0_-5px_20px_rgba(0,0,0,0.05)]'
+        }`}>
           <div className="max-w-4xl mx-auto">
             <div className="relative flex items-center w-full">
               <input
                 type="text"
-                className={`w-full h-13 md:h-16 bg-[#0f172a] border-2 border-slate-700/80 rounded-2xl md:rounded-full focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 text-white font-medium placeholder-slate-400 text-base transition-all shadow-inner ${
-                  t.dir === 'rtl' ? 'pr-5 pl-14 md:pl-20' : 'pl-5 pr-14 md:pr-20'
+                className={`w-full h-12 sm:h-14 md:h-15 border-2 rounded-2xl md:rounded-full focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-sm sm:text-base transition-all shadow-inner ${
+                  isDark 
+                    ? 'bg-[#0f172a] border-slate-700/80 text-white placeholder-slate-400' 
+                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
+                } ${
+                  t.dir === 'rtl' ? 'pr-4 sm:pr-5 pl-13 sm:pl-16' : 'pl-4 sm:pl-5 pr-13 sm:pr-16'
                 }`}
                 placeholder={t.inputPlaceholder}
                 value={inputText}
@@ -606,15 +799,15 @@ const ChatApp = () => {
               />
               <button 
                 onClick={() => handleSend()}
-                className={`absolute top-1/2 -translate-y-1/2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-full flex items-center justify-center transition-all shadow-lg shadow-blue-900/30 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 ${
-                  t.dir === 'rtl' ? 'left-2' : 'right-2'
+                className={`absolute top-1/2 -translate-y-1/2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white w-9 h-9 sm:w-11 sm:h-11 rounded-xl md:rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 disabled:opacity-40 disabled:hover:scale-100 ${
+                  t.dir === 'rtl' ? 'left-1.5 sm:left-2' : 'right-1.5 sm:right-2'
                 }`}
                 disabled={!inputText.trim()}
               >
-                <Send size={18} className={t.dir === 'rtl' ? 'transform -rotate-90 -translate-x-0.5' : ''} />
+                <Send size={16} className={t.dir === 'rtl' ? 'transform -rotate-90 -translate-x-0.5' : ''} />
               </button>
             </div>
-            <div className="text-center text-[10px] md:text-xs font-semibold text-slate-400 mt-2.5 md:mt-3 px-2">
+            <div className="text-center text-[10px] sm:text-xs font-semibold text-slate-400 mt-2 sm:mt-2.5 px-2">
               {t.disclaimer}
             </div>
           </div>
@@ -623,45 +816,57 @@ const ChatApp = () => {
 
       {/* Source Details Modal */}
       {selectedSource && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setSelectedSource(null)}></div>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSelectedSource(null)}></div>
           
-          <div className="relative bg-[#0f172a] text-slate-100 w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-slate-700 animate-in zoom-in duration-300" dir={t.dir}>
-            <div className="flex-none bg-[#0a0f1d] p-4 md:p-6 text-white flex justify-between items-center border-b border-amber-500/30">
-              <div className="flex items-center gap-3 md:gap-4">
-                <div className="bg-amber-500/10 p-2 rounded-xl hidden sm:block border border-amber-500/30">
-                  <ShieldCheck className="text-amber-400" size={20} />
+          <div className={`relative w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col border animate-in zoom-in duration-300 ${
+            isDark ? 'bg-[#0f172a] text-slate-100 border-slate-700' : 'bg-white text-slate-800 border-slate-200'
+          }`} dir={t.dir}>
+            <div className={`flex-none p-4 sm:p-5 flex justify-between items-center border-b ${
+              isDark ? 'bg-[#0a0f1d] border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-600/10 p-2 rounded-xl text-blue-600 hidden sm:block">
+                  <ShieldCheck size={20} />
                 </div>
                 <div>
-                  <h2 className="text-sm md:text-xl font-bold tracking-tight leading-tight text-white">{selectedSource.title}</h2>
-                  <p className="text-[10px] md:text-xs text-amber-400 font-bold uppercase tracking-widest mt-0.5 md:mt-1">{t.department} {selectedSource.department}</p>
+                  <h2 className="text-sm sm:text-lg font-bold tracking-tight leading-tight">{selectedSource.title}</h2>
+                  <p className="text-[10px] sm:text-xs text-blue-500 font-bold uppercase tracking-widest mt-0.5">{t.department} {selectedSource.department}</p>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedSource(null)}
-                className="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition-all text-slate-300 hover:text-white font-bold"
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all font-bold ${
+                  isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                }`}
               >✕</button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#070b14]">
-              <div className="bg-[#0f172a] p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-inner border border-slate-800 leading-relaxed text-slate-200 text-sm md:text-base font-normal">
+            <div className={`flex-1 overflow-y-auto p-4 sm:p-6 ${isDark ? 'bg-[#070b14]' : 'bg-slate-50/50'}`}>
+              <div className={`p-4 sm:p-6 rounded-2xl shadow-inner border leading-relaxed text-sm sm:text-base ${
+                isDark ? 'bg-[#0f172a] border-slate-800 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
+              }`}>
                 {selectedSource.content
                   .replace(/(پرسیار:|سؤال:|Question:)/gi, '\n$1')
                   .replace(/(وەڵام:|إجابة:|Answer:)/gi, '\n$1')
                   .split('\n').filter(line => line.trim())
                   .map((line, i) => (
-                  <div key={i} className="flex gap-3 md:gap-4 mb-4 last:mb-0 group/line hover:bg-slate-800/40 p-2 rounded-xl transition-colors">
-                    <div className="mt-2 w-2 h-2 rounded-full bg-amber-400 ring-4 ring-amber-400/10 flex-shrink-0" />
-                    <span className={`flex-1 leading-loose ${line.includes(':') ? 'text-amber-300 font-bold text-base' : 'text-slate-200'}`}>{line}</span>
+                  <div key={i} className={`flex gap-3 mb-3.5 last:mb-0 p-2 rounded-xl transition-colors ${
+                    isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'
+                  }`}>
+                    <div className="mt-2 w-2 h-2 rounded-full bg-blue-500 ring-4 ring-blue-500/10 flex-shrink-0" />
+                    <span className={`flex-1 leading-loose ${line.includes(':') ? 'text-blue-500 font-bold' : ''}`}>{line}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="flex-none p-4 md:p-6 bg-[#0a0f1d] border-t border-slate-800 flex justify-end">
+            <div className={`flex-none p-4 sm:p-5 border-t flex justify-end ${
+              isDark ? 'bg-[#0a0f1d] border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
               <button 
                 onClick={() => setSelectedSource(null)}
-                className="bg-blue-600 text-white font-bold px-6 py-2 md:px-8 md:py-2.5 rounded-xl hover:bg-blue-500 transition-all shadow-lg active:scale-95 text-sm md:text-base w-full sm:w-auto"
+                className="bg-blue-600 text-white font-bold px-6 py-2 rounded-xl hover:bg-blue-500 transition-all shadow-md active:scale-95 text-sm"
               >
                 {t.close}
               </button>
@@ -672,55 +877,61 @@ const ChatApp = () => {
 
       {/* Suggestion Modal */}
       {showSuggestion && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-[#0f172a] border border-slate-700 text-slate-100 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300" dir={t.dir}>
-            <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex justify-between items-center">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                <MessageCircle size={22} /> {t.suggestionTitle}
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-3 sm:p-4">
+          <div className={`w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border animate-in zoom-in duration-300 ${
+            isDark ? 'bg-[#0f172a] border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
+          }`} dir={t.dir}>
+            <div className="p-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex justify-between items-center">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <MessageCircle size={20} /> {t.suggestionTitle}
               </h3>
               <button onClick={() => setShowSuggestion(false)} className="text-white/80 hover:text-white">
-                <X size={22} />
+                <X size={20} />
               </button>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-5 space-y-4">
               {suggestionSent ? (
                 <div className="text-center py-8 space-y-3">
-                  <div className="w-16 h-16 bg-emerald-950 text-emerald-400 border border-emerald-700/50 rounded-full flex items-center justify-center mx-auto shadow-lg">
-                    <ShieldCheck size={32} />
+                  <div className="w-14 h-14 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-sm">
+                    <ShieldCheck size={28} />
                   </div>
-                  <p className="text-lg font-bold text-white">{t.suggestionSuccess}</p>
-                  <p className="text-sm text-slate-400">{t.suggestionThanks}</p>
+                  <p className="text-base font-bold">{t.suggestionSuccess}</p>
+                  <p className="text-xs text-slate-400">{t.suggestionThanks}</p>
                 </div>
               ) : (
                 <>
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1.5">{t.suggestionNameLabel}</label>
+                    <label className="block text-xs font-bold text-slate-400 mb-1.5">{t.suggestionNameLabel}</label>
                     <input 
                       type="text" 
                       value={suggestionName}
                       onChange={(e) => setSuggestionName(e.target.value)}
                       placeholder={t.suggestionNamePlaceholder}
-                      className="w-full p-3 bg-[#070b14] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                      className={`w-full p-2.5 sm:p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all text-sm ${
+                        isDark ? 'bg-[#070b14] border-slate-700 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      }`}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1.5">{t.suggestionTextLabel}</label>
+                    <label className="block text-xs font-bold text-slate-400 mb-1.5">{t.suggestionTextLabel}</label>
                     <textarea 
                       rows="4"
                       value={suggestionText}
                       onChange={(e) => setSuggestionText(e.target.value)}
                       placeholder={t.suggestionTextPlaceholder}
-                      className="w-full p-3 bg-[#070b14] border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all resize-none"
+                      className={`w-full p-2.5 sm:p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all resize-none text-sm ${
+                        isDark ? 'bg-[#070b14] border-slate-700 text-white placeholder-slate-500' : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      }`}
                     ></textarea>
                   </div>
                   <button 
                     onClick={handleSuggestionSend}
                     disabled={suggestionSending || !suggestionText.trim()}
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 flex items-center justify-center gap-2"
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-2.5 sm:py-3 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2 text-sm"
                   >
                     {suggestionSending ? t.suggestionSending : t.suggestionSubmit}
-                    <Send size={16} />
+                    <Send size={15} />
                   </button>
                 </>
               )}
