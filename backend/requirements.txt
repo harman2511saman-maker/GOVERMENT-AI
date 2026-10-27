@@ -20,3 +20,4 @@ langchain-google-genai
 google-generativeai
 slowapi==0.1.9
 psycopg2-binary
+openai>=1.0.0

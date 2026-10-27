@@ -306,32 +306,54 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
                 )
                 user_prompt = f"پرسیاری هاوڵاتی: {user_question}\n\nوەڵامی فەرمی:"
 
+        answer = ""
+        # 1. Primary: OpenAI gpt-4o-mini (via direct HTTP, no package dependency)
         if openai_key:
-            import openai
-            client = openai.OpenAI(api_key=openai_key)
-            completion = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0
-            )
-            answer = completion.choices[0].message.content
-        else:
-            from langchain_groq import ChatGroq
-            groq_model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
-            llm = ChatGroq(
-                api_key=os.getenv("GROQ_API_KEY", ""),
-                model_name=groq_model,
-                temperature=0
-            )
-            messages = [
-                ("system", system_prompt),
-                ("human", user_prompt),
-            ]
-            response = llm.invoke(messages)
-            answer = response.content
+            try:
+                import urllib.request
+                import json
+                openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+                payload = json.dumps({
+                    "model": openai_model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    "temperature": 0
+                }).encode("utf-8")
+                
+                req_ai = urllib.request.Request(
+                    "https://api.openai.com/v1/chat/completions",
+                    data=payload,
+                    headers={
+                        "Authorization": f"Bearer {openai_key}",
+                        "Content-Type": "application/json"
+                    }
+                )
+                with urllib.request.urlopen(req_ai, timeout=25) as resp:
+                    resp_data = json.loads(resp.read().decode("utf-8"))
+                    answer = resp_data["choices"][0]["message"]["content"]
+            except Exception as oai_err:
+                print(f"OpenAI call issue ({oai_err}), falling back to Groq...")
+                answer = ""
+
+        # 2. Resilient Fallback: Groq (qwen/qwen3.8-27b)
+        if not answer:
+            groq_key = os.getenv("GROQ_API_KEY")
+            if groq_key:
+                from langchain_groq import ChatGroq
+                groq_model = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+                llm = ChatGroq(
+                    api_key=groq_key,
+                    model_name=groq_model,
+                    temperature=0
+                )
+                messages = [
+                    ("system", system_prompt),
+                    ("human", user_prompt),
+                ]
+                response = llm.invoke(messages)
+                answer = response.content
 
     except Exception as e:
         print(f"LLM error: {e}")
@@ -358,6 +380,12 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
 
 # --- Chat History & Feedback API ---
 
+@app.get("/api/sessions/{session_id}/messages")
+@app.get("/api/sessions/history/{session_id}")
+def get_session_history(session_id: str, db: Session = Depends(get_db)):
+    messages = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).all()
+    return [{"id": m.id, "role": m.role, "content": m.content, "feedback_score": m.feedback_score, "created_at": m.created_at} for m in messages]
+
 @app.get("/api/sessions/{user_id}")
 def get_user_sessions(user_id: str, db: Session = Depends(get_db)):
     # 30 days ago limit can be enforced here natively
@@ -368,11 +396,6 @@ def get_user_sessions(user_id: str, db: Session = Depends(get_db)):
     ).order_by(ChatSession.last_activity.desc()).all()
     
     return [{"id": s.id, "title": s.title, "last_activity": s.last_activity} for s in sessions]
-
-@app.get("/api/sessions/history/{session_id}")
-def get_session_history(session_id: str, db: Session = Depends(get_db)):
-    messages = db.query(ChatMessage).filter(ChatMessage.session_id == session_id).order_by(ChatMessage.created_at.asc()).all()
-    return [{"id": m.id, "role": m.role, "content": m.content, "feedback_score": m.feedback_score, "created_at": m.created_at} for m in messages]
 
 @app.delete("/api/sessions/{session_id}")
 def delete_session(session_id: str, db: Session = Depends(get_db)):
