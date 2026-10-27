@@ -21,7 +21,7 @@ const ChatApp = () => {
   const [messages, setMessages] = useState([
     { 
       id: "welcome", 
-      text: "بەخێربێیت بۆ ناوەندی زانیاری زیرەک. ئەم پلاتفۆرمە یاریدەدەرێکی فەرمییە بۆ وەڵامدانەوەی پرسیارەکانت سەبارەت بە ڕێنمایی و خزمەتگوزارییەکانی حکومەتی هەرێمی کوردستان. چۆن دەتوانم ئەمڕۆ یارمەتیت بدەم؟", 
+      text: "بەخێربێیت بۆ حکومەتی دیجیتاڵ. ئەم پلاتفۆرمە یاریدەدەرێکی فەرمییە بۆ وەڵامدانەوەی پرسیارەکانت سەبارەت بە ڕێنمایی و خزمەتگوزارییەکانی حکومەتی هەرێمی کوردستان. چۆن دەتوانم ئەمڕۆ یارمەتیت بدەم؟", 
       sender: "bot",
       feedback_score: 0
     }
@@ -97,7 +97,7 @@ const ChatApp = () => {
     setMessages([
       { 
         id: "welcome", 
-        text: "بەخێربێیت بۆ ناوەندی زانیاری زیرەک. ئەم پلاتفۆرمە یاریدەدەرێکی فەرمییە بۆ وەڵامدانەوەی پرسیارەکانت سەبارەت بە ڕێنمایی و خزمەتگوزارییەکانی حکومەتی هەرێمی کوردستان. چۆن دەتوانم ئەمڕۆ یارمەتیت بدەم؟", 
+        text: "بەخێربێیت بۆ حکومەتی دیجیتاڵ. ئەم پلاتفۆرمە یاریدەدەرێکی فەرمییە بۆ وەڵامدانەوەی پرسیارەکانت سەبارەت بە ڕێنمایی و خزمەتگوزارییەکانی حکومەتی هەرێمی کوردستان. چۆن دەتوانم ئەمڕۆ یارمەتیت بدەم؟", 
         sender: "bot",
         feedback_score: 0
       }
@@ -382,7 +382,7 @@ const ChatApp = () => {
               <div className="flex flex-col justify-center min-w-0">
                 <h1 className="text-[17px] md:text-xl font-bold tracking-tight flex items-center gap-1 md:gap-2 text-white whitespace-nowrap">
                   <Crown size={16} className="text-secondary flex-shrink-0 md:w-[18px] md:h-[18px]" />
-                  ناوەندی زانیاری زیرەک
+                  حکومەتی دیجیتاڵ
                 </h1>
                 <span className="flex text-[10px] md:text-xs text-gray-300 font-medium tracking-wide items-center gap-1.5 mt-0.5 opacity-90 md:opacity-70">
                   <ShieldCheck size={12} className="text-secondary opacity-80" /> پلاتفۆرمی فەرمی وەڵامدانەوەی هاوڵاتی
