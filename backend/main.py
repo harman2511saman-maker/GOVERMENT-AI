@@ -92,6 +92,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.api_route("/", methods=["GET", "HEAD"])
+def root_health():
+    return {"status": "online", "service": "Government AI API", "docs": "/docs"}
+
 # --- Authentication API ---
 
 @app.post("/api/auth/login")
