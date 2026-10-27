@@ -271,6 +271,37 @@ const ChatApp = () => {
             }
           }
         }
+
+        // If stream ended prematurely without any text, automatically fall back to standard JSON
+        if (!accumulatedText.trim()) {
+          console.warn("Stream returned empty, falling back to standard JSON...");
+          const fbRes = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              message: textToSend, 
+              session_id: currentSessionId, 
+              user_id: userId,
+              language: lang,
+              stream: false
+            })
+          });
+          if (fbRes.ok) {
+            const fbData = await fbRes.json();
+            setMessages(prev => prev.map(m => m.id === botMsgId ? {
+              ...m,
+              id: fbData.message_id || botMsgId,
+              text: fbData.answer,
+              sources: fbData.sources || []
+            } : m));
+            if (fbData.session_title) {
+              fetchSessions();
+            }
+            return;
+          } else {
+            throw new Error(t.serverError);
+          }
+        }
       } else {
         const data = await response.json();
         setMessages(prev => [...prev, {
