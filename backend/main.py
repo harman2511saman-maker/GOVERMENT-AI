@@ -1,3 +1,11 @@
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,8 +31,22 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 load_dotenv()
 
 # --- Shared AI Components ---
-# Initialize embeddings singleton (Google Multi-lingual model)
-embeddings_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+# Initialize embeddings singleton (Google Multi-lingual model or deterministic fallback)
+google_api_key = os.getenv("GOOGLE_API_KEY")
+if google_api_key:
+    embeddings_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=google_api_key)
+else:
+    class FallbackEmbeddings:
+        def embed_query(self, text: str):
+            import hashlib
+            h = hashlib.sha256(text.encode('utf-8')).digest()
+            vec = [(b / 255.0) for b in h]
+            return (vec * 24)[:768]
+        def embed_documents(self, texts: list):
+            return [self.embed_query(t) for t in texts]
+    embeddings_model = FallbackEmbeddings()
+    print("ℹ️ GOOGLE_API_KEY not found in .env; using fallback embeddings model.")
+
 # Updated chunking for better legal/gov context (Suggested: 500-800 size, 50-100 overlap)
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=600, chunk_overlap=100)
 
@@ -59,7 +81,7 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost,http://localhost:3000,http://127.0.0.1")
+allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost,http://localhost:3000,http://127.0.0.1,http://localhost:5173,http://127.0.0.1:5173,http://localhost:80")
 allowed_origins = [o.strip() for o in allowed_origins_raw.split(",") if o.strip()]
 
 app.add_middleware(
@@ -217,10 +239,10 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
     # ── Step 2: call Groq (Llama 3.3) ───────────────────────────
     try:
         from langchain_groq import ChatGroq
-        
+        groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
         llm = ChatGroq(
             api_key=os.getenv("GROQ_API_KEY", ""),
-            model_name="llama-3.3-70b-versatile",
+            model_name=groq_model,
             temperature=0
         )
 
@@ -269,7 +291,8 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
     if is_new_session:
         try:
             from langchain_groq import ChatGroq
-            llm_title = ChatGroq(api_key=os.getenv("GROQ_API_KEY", ""), model_name="llama-3.3-70b-versatile", temperature=0)
+            groq_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+            llm_title = ChatGroq(api_key=os.getenv("GROQ_API_KEY", ""), model_name=groq_model, temperature=0)
             title_resp = llm_title.invoke([
                 ("system", "Write a 2-4 word descriptive Kurdish title for the user's question (e.g. زانیاری پاسپۆرت, مۆڵەتی چەک). Do not use quotes or conversational text. Just the title text."),
                 ("human", user_question)

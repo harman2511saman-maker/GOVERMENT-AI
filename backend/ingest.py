@@ -1,10 +1,17 @@
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import os
 from sqlalchemy import text
-from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from database import engine, SessionLocal, Base
 from models import Document, DocumentChunk
+from main import embeddings_model
 
 def init_db():
     print("Ensuring pgvector extension is enabled...")
@@ -16,8 +23,8 @@ def init_db():
 
 def ingest_data():
     print("Loading document...")
-    loader = TextLoader("sample_data.txt", encoding="utf-8")
-    docs = loader.load()
+    with open("sample_data.txt", "r", encoding="utf-8") as f:
+        file_content = f.read()
 
     print("Splitting document...")
     text_splitter = RecursiveCharacterTextSplitter(
@@ -25,27 +32,27 @@ def ingest_data():
         chunk_overlap=50,
         separators=["\n\n", "\n", " ", ""]
     )
-    chunks = text_splitter.split_documents(docs)
+    chunks = text_splitter.split_text(file_content)
 
-    print("Initializing Google embeddings model...")
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+    print("Using configured embeddings model...")
+    embeddings = embeddings_model
 
     print(f"Generating embeddings for {len(chunks)} chunks...")
     
     db = SessionLocal()
     try:
         # First, add the document
-        doc_entry = Document(title="دەرهێنانی پاسپۆرت و نوێکردنەوە", content=docs[0].page_content)
+        doc_entry = Document(title="دەرهێنانی پاسپۆرت و نوێکردنەوە", content=file_content)
         db.add(doc_entry)
         db.commit()
         db.refresh(doc_entry)
 
         # Generate embeddings and add chunks
-        for i, chunk in enumerate(chunks):
-            embedding_vector = embeddings.embed_query(chunk.page_content)
+        for i, chunk_text in enumerate(chunks):
+            embedding_vector = embeddings.embed_query(chunk_text)
             chunk_entry = DocumentChunk(
                 document_id=doc_entry.id,
-                chunk_text=chunk.page_content,
+                chunk_text=chunk_text,
                 embedding=embedding_vector
             )
             db.add(chunk_entry)
