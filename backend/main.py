@@ -220,72 +220,76 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
         print(f"--- Searching for: {cleaned_question} ---")
         
         valid_chunks = []
-        seen_titles = set()
+        matched_doc_ids = set()
+        seen_sources = set()
 
         # A. Keyword Booster Search (Matches ANY document in the database by title/content keywords)
         kw_words = [w for w in cleaned_question.split() if len(w) >= 3 and w not in ["چۆن", "کەی", "چەند", "چییە", "دەکرێت", "بۆچی", "ئایا", "تکایە"]]
         if kw_words:
-            for term in kw_words[:3]:
+            for term in kw_words[:4]:
                 kw_results = db.execute(
                     text("""
-                        SELECT dc.chunk_text, d.title, d.content, d.department, 1.0 AS similarity, d.link
-                        FROM document_chunks dc
-                        JOIN documents d ON dc.document_id = d.id
-                        WHERE d.title ILIKE :kw OR dc.chunk_text ILIKE :kw
-                        LIMIT 3
+                        SELECT d.id, d.title, d.content, d.department, d.link
+                        FROM documents d
+                        WHERE d.title ILIKE :kw OR d.content ILIKE :kw
+                        LIMIT 2
                     """),
                     {"kw": f"%{term}%"}
                 ).fetchall()
                 for kr in kw_results:
-                    if kr[1] not in seen_titles:
-                        chunk_str = f"[{kr[1]}]\n{kr[0]}"
-                        if kr[5]:
-                            chunk_str += f"\nلینکی فەرمی: {kr[5]}"
-                        valid_chunks.append(chunk_str)
-                        sources.append({
-                            "title": kr[1],
-                            "content": kr[2],
-                            "department": kr[3],
-                            "link": kr[5]
-                        })
-                        seen_titles.add(kr[1])
+                    doc_id, title, content, dept, link = kr[0], kr[1], kr[2], kr[3], kr[4]
+                    if doc_id not in matched_doc_ids:
+                        doc_str = f"[{title}]\n{content}"
+                        if link:
+                            doc_str += f"\nلینکی فەرمی: {link}"
+                        valid_chunks.append(doc_str)
+                        matched_doc_ids.add(doc_id)
+                        if title not in seen_sources:
+                            sources.append({
+                                "title": title,
+                                "content": content,
+                                "department": dept,
+                                "link": link
+                            })
+                            seen_sources.add(title)
 
         # B. Vector Similarity Search
         try:
             query_embedding = embeddings_model.embed_query(cleaned_question)
             results = db.execute(
                 text("""
-                    SELECT dc.chunk_text, d.title, d.content, d.department,
-                           1 - (dc.embedding <=> CAST(:emb AS vector)) AS similarity,
-                           d.link
+                    SELECT d.id, d.title, d.content, d.department, d.link,
+                           1 - (dc.embedding <=> CAST(:emb AS vector)) AS similarity
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
                     ORDER BY dc.embedding <=> CAST(:emb AS vector)
-                    LIMIT 5
+                    LIMIT 6
                 """),
                 {"emb": str(query_embedding)}
             ).fetchall()
 
             for row in results:
-                score = float(row[4])
-                if score >= SIMILARITY_THRESHOLD and row[1] not in seen_titles:
-                    chunk_str = f"[{row[1]}]\n{row[0]}"
-                    if row[5]:
-                        chunk_str += f"\nلینکی فەرمی: {row[5]}"
-                    valid_chunks.append(chunk_str)
-                    sources.append({
-                        "title": row[1],
-                        "content": row[2],
-                        "department": row[3],
-                        "link": row[5]
-                    })
-                    seen_titles.add(row[1])
+                doc_id, title, content, dept, link, score = row[0], row[1], row[2], row[3], row[4], float(row[5])
+                if score >= SIMILARITY_THRESHOLD and doc_id not in matched_doc_ids:
+                    doc_str = f"[{title}]\n{content}"
+                    if link:
+                        doc_str += f"\nلینکی فەرمی: {link}"
+                    valid_chunks.append(doc_str)
+                    matched_doc_ids.add(doc_id)
+                    if title not in seen_sources:
+                        sources.append({
+                            "title": title,
+                            "content": content,
+                            "department": dept,
+                            "link": link
+                        })
+                        seen_sources.add(title)
         except Exception as ve:
             print(f"Vector search skipped/failed: {ve}")
 
         if valid_chunks:
             context_text = "\n\n".join(valid_chunks)
-            print(f"--- RAG Context Found ({len(valid_chunks)} chunks, {len(sources)} sources) ---")
+            print(f"--- RAG Context Found ({len(valid_chunks)} documents, {len(sources)} sources) ---")
         else:
             print("--- No specific document found; AI will provide intelligent guidance ---")
             try:
@@ -314,6 +318,7 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
                     "أنت المساعد الذكي الرسمي لحكومة إقليم كوردستان. "
                     "يجب أن تبدأ إجابتك دائماً بـ 'عزيزي المواطن،' بأعلى درجات اللباقة والاحترام. "
                     "قدم المعلومات بدقة واختصار على شكل نقاط أو خطوات مرقمة. "
+                    "مهم جداً للرسوم والأسعار: إذا كانت المعلومات تتضمن رسوماً أو تكاليف، اذكر المبالغ بدقة بالأرقام وبالدينار. "
                     "إذا كان هناك رابط رسمي في المعلومات، اذكره في نهاية إجابتك بصيغة: [اسم الرابط](الرابط الرسمي) لكي يتمكن المواطن من النقر عليه مباشرة. "
                     "إذا كانت هناك خيارات متعددة ذات صلة، اذكرها بين أقواس مربعة مثل: [رسوم جواز السفر]."
                 )
@@ -331,6 +336,7 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
                     "You are the official, highly intelligent AI assistant of the Kurdistan Regional Government. "
                     "Always start your response with 'Dear Citizen,' with the utmost respect. "
                     "Present guidelines clearly and concisely with numbered steps or bullet points. "
+                    "Crucial for fees and prices: Always state all exact amounts and numbers in Dinars from the official information. "
                     "If an official link or website is mentioned in the official data, format it at the end as [Link Name](URL) so the citizen can click it directly."
                 )
                 user_prompt = f"Official Information:\n{context_text}\n\nCitizen Inquiry: {user_question}\n\nOfficial Answer:"
@@ -344,14 +350,14 @@ def chat(request: Request, req: ChatRequest, db: Session = Depends(get_db)):
         else:
             if context_text:
                 system_prompt = (
-                    "تۆ یاریدەدەری فەرمی، زۆر زیرەک و میهرەبانی حکومەتی هەرێمی کوردستانی بۆ خزمەتی هاوڵاتییان. "
-                    "دەبێت هەموو وەڵامەکانت بە 'هاوڵاتی بەڕێز،' دەستپێ بکات و لەوپەڕی ڕێز و شکۆمەندیدا بێت. "
-                    "زانیارییە فەرمییەکان بە شێوەی خاڵبەندی (Bullet points) یان هەنگاوی ژمارەکراوی کورت و پوخت پێشکەش بکە بەبێ درێژدادڕی. "
-                    "ئەگەر لە زانیارییەکاندا لینکی فەرمی یان ماڵپەڕ هەبوو، لە کۆتایی وەڵامەکەتدا بە شێوەی [ناوی بەستەر](لینکی فەرمی) بینوسە بۆ ئەوەی هاوڵاتی ڕاستەوخۆ کلیکی لێبکات. "
-                    "گرنگ: وەڵامەکانت هەمیشە دەبێت بە زمانی کوردی (شێوەزاری سۆرانی) بن، مەگەر هاوڵاتییەکە بە بادینی بپرسێت. "
-                    "ئەگەر هاوڵاتی پرسیارێکی کرد کە لە زانیارییەکاندا چەندین جۆری هەبوو، بژاردەکان لە ناو کەوانەی چوارگۆشەدا بنووسە. بۆ نموونە: [تێچووی پاسپۆرت]."
+                    "تۆ یاریدەدەری فەرمیی حکومەتی هەرێمی کوردستانی بۆ خزمەتی هاوڵاتییان. "
+                    "هەموو وەڵامەکانت دەبێت بە 'هاوڵاتی بەڕێز،' دەست پێ بکات. "
+                    "وەڵامەکانت ڕێکخراو، کورت و بە شێوەی خاڵبەندی (Bullet points) یان هەنگاوی ژمارەکراو بن. "
+                    "زۆر گرنگ بۆ نرخ و ڕسوومات: ئەگەر لە زانیارییەکاندا نرخ، تێچوو، ڕسوومات، یان غەرامە هەبوو، دەبێت بە تەواوی و بە وردی هەموو بڕی پارەکان بە ژمارە و بە دینار بنووسیت و هیچی لێ فەرامۆش نەکەیت (وەک: ٤٥,٠٠٠ دینار، ٢٥,٠٠٠ دینار، ١٠,٠٠٠ دینار). "
+                    "ئەگەر لە زانیارییەکاندا لینکی فەرمی هەبوو، لە کۆتاییدا بە شێوەی [ناوی بەستەر](لینکی فەرمی) دابنێ بۆ ئەوەی هاوڵاتی کلیکی لێبکات. "
+                    "وەڵامەکانت هەمیشە بە زمانی کوردییەکی ڕەوان و فەرمی (شێوەزاری سۆرانی) بن."
                 )
-                user_prompt = f"زانیارییە فەرمییەکان:\n{context_text}\n\nپرسیاری هاوڵاتی: {user_question}\n\nتێبینی گرنگ: تەنها لەسەر ئەم پرسیارە زانیاری بدە بەبێ زیادەڕۆیی.\n\nوەڵامی فەرمی:"
+                user_prompt = f"زانیارییە فەرمییەکان:\n{context_text}\n\nپرسیاری هاوڵاتی: {user_question}\n\nوەڵامی فەرمی:"
             else:
                 system_prompt = (
                     "تۆ یاریدەدەری فەرمی، زۆر زیرەک و میهرەبانی حکومەتی هەرێمی کوردستانی بۆ خزمەتی هاوڵاتییان. "
