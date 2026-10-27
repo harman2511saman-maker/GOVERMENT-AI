@@ -15,7 +15,7 @@ from sqlalchemy import text
 from typing import Optional
 from pydantic import BaseModel
 from database import engine, get_db, Base
-from auth import get_current_admin, create_access_token, verify_password
+from auth import get_current_admin, create_access_token, verify_password, get_password_hash
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -113,6 +113,52 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     
     access_token = create_access_token(data={"sub": admin.username})
     return {"access_token": access_token, "token_type": "bearer"}
+
+class ChangeCredentialsRequest(BaseModel):
+    current_password: str
+    new_username: Optional[str] = None
+    new_password: Optional[str] = None
+
+@app.get("/api/admin/me")
+def get_admin_me(admin: models.AdminUser = Depends(get_current_admin)):
+    return {"username": admin.username, "id": admin.id}
+
+@app.post("/api/admin/change-credentials")
+async def change_credentials(
+    req: ChangeCredentialsRequest,
+    db: Session = Depends(get_db),
+    admin: models.AdminUser = Depends(get_current_admin)
+):
+    if not verify_password(req.current_password, admin.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="پاسوۆردی ئێستات هەڵەیە"
+        )
+    
+    if req.new_username and req.new_username.strip():
+        new_u = req.new_username.strip()
+        existing = db.query(models.AdminUser).filter(
+            models.AdminUser.username == new_u,
+            models.AdminUser.id != admin.id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="ئەم ناوی بەکارهێنەرە پێشتر بەکارهاتووە"
+            )
+        admin.username = new_u
+        
+    if req.new_password and req.new_password.strip():
+        new_p = req.new_password.strip()
+        if len(new_p) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="پاسوۆردی نوێ دەبێت لانیکەم ٨ پیت و ژمارە بێت"
+            )
+        admin.hashed_password = get_password_hash(new_p)
+        
+    db.commit()
+    return {"status": "success", "message": "زانیارییەکان بە سەرکەوتوویی نوێکرانەوە"}
 
 # ─────────────────────── Chat endpoint ───────────────────────
 # --- Schemas ---

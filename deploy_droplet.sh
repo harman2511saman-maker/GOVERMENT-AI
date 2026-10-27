@@ -32,15 +32,15 @@ echo "✅ Backend files extracted."
 
 # 4. Write .env configuration
 cat << 'EOF' > /var/www/goverment-ai/backend/.env
-OPENAI_API_KEY=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
+OPENAI_API_KEY=${OPENAI_API_KEY:-"YOUR_OPENAI_API_KEY"}
 OPENAI_MODEL=gpt-4o-mini
-GROQ_API_KEY=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
+GROQ_API_KEY=${GROQ_API_KEY:-""}
 GROQ_MODEL=qwen/qwen3.8-27b
 SIMILARITY_THRESHOLD=0.28
-JWT_SECRET_KEY=9e8b7c6d5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8
+JWT_SECRET_KEY=${JWT_SECRET_KEY:-"$(openssl rand -hex 32 2>/dev/null || echo 'change-this-secret-key-in-production')"}
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
-DATABASE_URL=postgresql+pg8000://neondb_owner:npg_zgR8UySblQc2@ep-noisy-violet-amus6pxs.c-5.us-east-1.aws.neon.tech/neondb
+DATABASE_URL=${DATABASE_URL:-"YOUR_NEON_DATABASE_URL"}
 ALLOWED_ORIGINS=*
 EOF
 

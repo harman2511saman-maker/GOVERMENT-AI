@@ -2,19 +2,30 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Serve deploy.sh as raw shell script for droplet bootstrap
-    if (url.pathname === '/deploy.sh' || url.pathname === '/update.py') {
-      const asset = await env.ASSETS.fetch(request);
-      const text = await asset.text();
-      return new Response(text, {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': 'no-cache, no-store'
-        }
+    // 1. Block access to hidden, system, or sensitive files (.sh, .py, .env, .git, etc.)
+    const blockedPattern = /\.(sh|py|env|sql|bak|git|config|conf|log|key|pem|cert)$/i;
+    if (blockedPattern.test(url.pathname) || url.pathname.includes('/.')) {
+      return new Response('403 Forbidden: Access Denied', {
+        status: 403,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
     }
 
-    // Proxy API requests directly to DigitalOcean Droplet backend (Frankfurt via sslip.io)
+    // Helper to append standard security headers
+    function addSecurityHeaders(response) {
+      const newHeaders = new Headers(response.headers);
+      newHeaders.set('X-Content-Type-Options', 'nosniff');
+      newHeaders.set('X-Frame-Options', 'SAMEORIGIN');
+      newHeaders.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+      newHeaders.set('X-XSS-Protection', '1; mode=block');
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: newHeaders,
+      });
+    }
+
+    // 2. Proxy API requests directly to DigitalOcean Droplet backend (sslip.io)
     if (url.pathname.startsWith('/api/')) {
       const targetUrl = new URL(url.pathname + url.search, 'http://164-92-207-159.sslip.io');
       const headers = new Headers(request.headers);
@@ -27,10 +38,12 @@ export default {
         redirect: 'follow',
       });
 
-      return fetch(backendReq);
+      const backendResp = await fetch(backendReq);
+      return addSecurityHeaders(backendResp);
     }
 
-    // Serve static assets from frontend/dist (SPA routing)
-    return env.ASSETS.fetch(request);
+    // 3. Serve static assets from frontend/dist (SPA routing)
+    const assetResp = await env.ASSETS.fetch(request);
+    return addSecurityHeaders(assetResp);
   },
 };
