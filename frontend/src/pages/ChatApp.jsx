@@ -53,6 +53,7 @@ const ChatApp = () => {
   const [suggestionSending, setSuggestionSending] = useState(false);
   const [suggestionSent, setSuggestionSent] = useState(false);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
   const [copyStatus, setCopyStatus] = useState(null);
 
   // Sync theme
@@ -182,6 +183,9 @@ const ChatApp = () => {
   const handleSend = async (overrideText = null) => {
     const textToSend = overrideText && typeof overrideText === 'string' ? overrideText : inputText;
     if (!textToSend.trim() || isLoading) return;
+    
+    // Remove focus immediately on send to prevent mobile screen staying focused/zoomed
+    inputRef.current?.blur();
     
     // Remove welcome message on first real interaction
     const currentMsgs = messages.filter(m => m.id !== "welcome");
@@ -774,13 +778,14 @@ const ChatApp = () => {
           <div className="max-w-4xl mx-auto">
             <div className="relative flex items-center w-full">
               <input
+                ref={inputRef}
                 type="text"
-                className={`w-full h-12 sm:h-14 md:h-15 border-2 rounded-2xl md:rounded-full focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 font-medium text-sm sm:text-base transition-all shadow-inner ${
+                className={`w-full h-12 sm:h-14 md:h-15 border rounded-2xl md:rounded-full outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 text-[16px] font-medium transition-colors ${
                   isDark 
-                    ? 'bg-[#0f172a] border-slate-700/80 text-white placeholder-slate-400' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white'
+                    ? 'bg-[#0f172a] border-slate-700 text-white placeholder-slate-500 focus:border-slate-600' 
+                    : 'bg-slate-100 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-slate-400'
                 } ${
-                  t.dir === 'rtl' ? 'pr-4 sm:pr-5 pl-13 sm:pl-16' : 'pl-4 sm:pl-5 pr-13 sm:pr-16'
+                  t.dir === 'rtl' ? 'pr-4 sm:pr-5 pl-12 sm:pl-16' : 'pl-4 sm:pl-5 pr-12 sm:pr-16'
                 }`}
                 placeholder={t.inputPlaceholder}
                 value={inputText}

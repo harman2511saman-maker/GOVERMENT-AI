@@ -28,6 +28,17 @@ body {
   overflow: hidden;
 }
 
+/* Prevent mobile auto-zoom and remove tap/focus highlight */
+input, textarea, select {
+  font-size: 16px !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+input:focus, textarea:focus, button:focus {
+  outline: none !important;
+  -webkit-focus-ring-color: transparent !important;
+}
+
 /* Adaptive custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
